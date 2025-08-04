@@ -1,0 +1,18 @@
+{
+  "name": "nomad-task-processor",
+  "version": "1.0.0",
+  "description": "Automated task processing module for nomad project",
+  "main": "process-tasks.js",
+  "scripts": {
+    "start": "node process-tasks.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "axios": "^1.4.0",
+    "fs-extra": "^11.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "keywords": ["task-processing", "automation", "claude"],
+  "author": "",
+  "license": "ISC"
+}

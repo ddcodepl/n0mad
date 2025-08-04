@@ -3,96 +3,82 @@ page_id: 2450fc11-d335-80bb-8b8e-c8757fe833c8
 title: Processing tasks
 ticket_id: NOMAD-14
 stage: refined
-generated_at: 2025-08-04 07:48:31
+generated_at: 2025-08-04 09:06:37
 ---
 
 # NOMAD-14 Processing tasks
 
 ## Overview
-Enhance the task-processing script to automatically transition queued tasks through execution via Claude, update status lifecycle, and provide real-time feedback. This automation reduces manual intervention and improves visibility into task progress.
+Enhance the existing task-processing script to automatically detect queued tasks, transition their status through execution phases, invoke the Claude engine with a predefined prompt, handle task file copying for multi-queue scenarios, and provide real-time feedback updates to users. This improves operational efficiency and visibility into long-running automated workflows.
 
 ## Acceptance Criteria
-- [ ] **AC1:** When any tickets have status “Queued to run,” the script sets their status to “In progress” before execution.
-- [ ] **AC2:** The script invokes Claude (skipping permission checks), executes the prompt `“Process all tasks from the task master, don’t stop unless you finish all of the tasks, after that close the app”`, and upon completion sets the ticket status to “Done.”
-- [ ] **AC3:** For each processing step (refining, execution, closing), the script updates the ticket’s `Feedback` property with a timestamped message.
+- [ ] **AC1:** Codebase Recon completed; relevant script(s), ticket/status data stores, task file structure, and integration points identified and documented.  
+- [ ] **AC2:** Script correctly transitions ticket statuses (“Queued to run” → “In progress” → “Done”), invokes the Claude engine prompt, handles multiple queued tasks, and updates the Feedback property at each processing step, with regression-safe tests.  
+- [ ] **AC3:** End-to-end execution completes within agreed SLA (e.g., total processing time below threshold for X tasks) and memory/CPU usage remains within acceptable bounds; performance metrics documented.
 
 ## Technical Requirements
 
 ### Core Functionality
-- Enumerate tickets via internal Tickets API filtered by `status = "Queued to run"`.
-- Update each ticket’s status to `In progress` via `PATCH /tickets/{id}`.
-- Invoke Claude engine:
-  - Endpoint: `POST /claude/run`
-  - Payload:
-    ```json
-    {
-      "skipPermissions": true,
-      "prompt": "Process all tasks from the task master, don’t stop unless you finish all of the tasks, after that close the app"
-    }
-    ```
-- On success, update ticket status to `Done`.
-- If multiple queued tasks:
-  - Read first ticket’s `id` property.
-  - Locate task file at `tasks/tasks/<id>.json`.
-  - Copy its contents to `<parent_directory>/.ticketmaster/tasks/tasks.json`.
-- At each stage, `PATCH /tickets/{id}` with:
-  ```json
-  {
-    "properties": {
-      "Feedback": "<ISO timestamp> - <stage description>"
-    }
-  }
-  ```
+- **Codebase Recon:** Analyze the existing codebase to locate the task-processing script, ticket/status storage modules, and the tasks/tasks directory; map out how statuses and Feedback properties are read/updated and how external LLM engines are invoked.  
+- Implement detection of tickets with status “Queued to run” within the existing status management interface.  
+- Update ticket status to “In progress” before task execution begins.  
+- Invoke the Claude engine, bypassing permission checks, with prompt:  
+  “Process all tasks from the task master, don’t stop unless you finish all of the tasks, after that close the app.”  
+- After the Claude execution completes, update the ticket status to “Done.”  
+- If more than one task is queued:  
+  - Retrieve the first ticket’s ID from its properties.  
+  - Locate the corresponding file at `tasks/tasks/<id>.json`.  
+  - Copy it to `<parent_directory>/.taskmaster/tasks/tasks.json` using existing file utilities.  
+- Add Feedback updates at each stage—refining, preparing, processing, copying, finalizing—by updating the ticket’s Feedback property.
 
 ### Integration Points
-- Internal Tickets API (v2.1; OAuth2 bearer token required)
-- Claude service API (v1; skipPermissions flag)
-- File system access under `<repo_root>/tasks/tasks` and `<repo_root>/.ticketmaster/tasks`
-- Node.js fs-extra module for file operations
+- The existing task-processing script/module in `<path_to_scripts>` (to be discovered).  
+- Ticket/status management interfaces or modules where statuses and properties are stored (database models or file-based storage).  
+- File system utilities for locating and copying JSON task files.  
+- External LLM invocation mechanism for the Claude engine.
 
 ### Data Requirements
-- Database schema change: none
-- Ticket object properties:
-  - `status` enum update (Queued to run → In progress → Done)
-  - `Feedback` string field for step logs
-- No bulk data migration required
+- No schema additions beyond ensuring each ticket record has a Feedback field capable of holding status messages.  
+- Ensure that task JSON files under `tasks/tasks/` conform to the expected structure used by the script.  
+- Validate that the copied `tasks.json` matches the schema consumed by downstream logic.  
+- Add basic validation for ticket ID existence and file path availability.
 
 ## Implementation Approach
 
 ### Architecture & Design
-- Script as standalone Node.js module executed by CI or cron.
-- Command pattern:  
-  1. fetchQueuedTasks()  
-  2. processTask(task)  
-     - updateStatus(“In progress”)  
-     - copyTaskFileIfNeeded()  
-     - invokeClaude()  
-     - updateFeedback(“refining”), updateFeedback(“executing”), updateFeedback(“closing”)  
-     - updateStatus(“Done”)
-- Error handling with retries (up to 3 attempts per API call)
-- Logging to console and optional audit log file
-
-### Technology Stack
-- Node.js 18.x
-- npm packages: `axios@1.4`, `fs-extra@11`, `dotenv@16`
-- Justification: existing codebase uses Node.js; axios for HTTP; fs-extra for robust file operations
+- Extend the existing task-processing script:  
+  1. Discover queued tickets via the status module.  
+  2. Update status and Feedback property through the same interfaces currently used for manual updates.  
+  3. Invoke the Claude engine via the existing LLM integration layer, passing the static prompt.  
+  4. Handle file-level operations with current file-utility components.  
+  5. Commit final status update and Feedback.  
+- Apply the Command Pattern for each processing step to encapsulate status transitions and feedback updates.  
+- Use the existing logging/tracing facility to correlate feedback updates with system logs.
 
 ## Performance & Scalability
-- Expected load: <10 tasks/hour; negligible CPU/memory
-- Scalability: batch size configurable via env var (`MAX_CONCURRENT=1`)
-- Resource utilization: minimal
-- No caching required
+- Target processing latency: under X seconds per task for Y concurrent tasks.  
+- Ensure memory usage remains linear to task size; reuse in-memory data structures where possible.  
+- For bulk task loads, implement batching or streaming to avoid large file copies in one shot.  
+- Leverage existing caching layers (if any) to avoid repeated file system lookups.
 
 ## Security Considerations
-- Claude invocation uses `skipPermissions`; ensure environment is secured
-- Store API tokens in encrypted secrets (e.g., AWS Secrets Manager, Vault)
-- Sanitize file paths to prevent directory traversal
-- Audit logs for all status transitions
+- Bypassing permission checks for the Claude engine increases risk; ensure invocation is limited to a secured runtime context.  
+- Validate and sanitize file paths before performing copy operations to prevent path traversal.  
+- Ensure Feedback updates do not expose sensitive data from task contents or engine responses.  
+- Audit trails must capture each status transition and Claude invocation.
 
 ## Complexity Estimate
-**Medium** - Involves API orchestration, file I/O, multi-step updates, and error-handling logic.
+**Medium** - Requires recon of existing scripting modules, integration with status/Feedback interfaces, careful orchestration of file operations, and secure LLM invocation.
 
 ## Additional Notes
-- Depends on CLAUDE-API-ACCESS ticket for service credentials
-- Risk: potential infinite loop if Claude never returns; mitigation: enforce overall timeout (e.g., 30 minutes)
-- Future: parallel task processing, GUI progress dashboard
+- Information Needed:  
+  - Exact file path(s) of the current task-processing script and task/status storage modules.  
+  - Location and structure of ticket records (database tables or JSON files).  
+  - Access mechanism for invoking the Claude engine in the codebase.  
+- Dependencies on other tickets/features: none identified yet.  
+- Potential risks and mitigation strategies:  
+  - Unhandled failures in the Claude engine → implement retry logic and error-status updates.  
+  - File I/O errors during copy → validate permissions and disk space ahead of time.  
+- Future enhancement considerations:  
+  - Dynamic prompt configuration per task type.  
+  - Parallel processing of multiple queued tasks.

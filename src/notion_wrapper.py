@@ -525,6 +525,22 @@ class NotionClientWrapper:
             # For now, let's implement a workaround by updating the page with file information
             # In a production system, you'd typically upload to a file storage service first
             
+            # First, clear any existing files in the Tasks property
+            clear_property = {
+                property_name: {
+                    "files": []
+                }
+            }
+            
+            # Clear existing files first
+            self._retry_with_exponential_backoff(
+                self.client.pages.update,
+                page_id=page_id,
+                properties=clear_property
+            )
+            
+            logger.info(f"🧹 Cleared existing files from property '{property_name}'")
+            
             # Create file reference in the Tasks property
             # Since Tasks is a 'files' property type, we need to format it correctly
             file_property = {

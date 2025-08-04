@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 
 
 class CommandExecutor:
-    def __init__(self, base_dir: str = None, timeout: int = 600):
+    def __init__(self, base_dir: str = None, timeout: int = 120):
         """
         Initialize CommandExecutor
         
@@ -28,17 +28,15 @@ class CommandExecutor:
         
         Args:
             ticket_ids: List of validated ticket IDs that have corresponding files
-            refined_dir: Directory containing the refined markdown files (uses TASKS_DIR if None)
+            refined_dir: Directory containing the refined markdown files (defaults to {base_dir}/src/tasks/refined)
         
         Returns:
             Dictionary with execution results for each ticket
         """
-        # Use TASKS_DIR environment variable or default, same as FileOperations
+        # Use consistent path calculation with main.py approach
         if refined_dir is None:
-            tasks_base_dir = os.getenv("TASKS_DIR", "./src/tasks")  # Default to src/tasks from project root
-            # Make sure the path is relative to the base_dir
-            if not os.path.isabs(tasks_base_dir):
-                tasks_base_dir = os.path.join(self.base_dir, tasks_base_dir)
+            # Default to src/tasks/refined relative to the base_dir (project root)
+            tasks_base_dir = os.path.join(self.base_dir, "src", "tasks")
             refined_dir = os.path.join(tasks_base_dir, "refined")
             # Normalize the path to remove any ./ components
             refined_dir = os.path.normpath(refined_dir)
