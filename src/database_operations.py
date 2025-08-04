@@ -106,12 +106,12 @@ class DatabaseOperations:
                 # Use dynamic filter creation based on actual property type
                 filter_dict = self.notion_client.create_status_filter(status.value)
                 
-                # Add pagination parameters
-                query_params = {"filter": filter_dict, "page_size": min(page_size, 100)}
-                if start_cursor:
-                    query_params["start_cursor"] = start_cursor
-                
-                response = self.notion_client.query_database(**query_params)
+                # Call query_database with correct parameter names
+                response = self.notion_client.query_database(
+                    filter_dict=filter_dict,
+                    start_cursor=start_cursor,
+                    page_size=min(page_size, 100)
+                )
                 
                 # Extract results and next cursor
                 if isinstance(response, dict):

@@ -2,132 +2,131 @@
   "master": {
     "tasks": [
       {
-        "id": 121,
-        "title": "Codebase Reconnaissance - Identify Prompt Refinement Module",
-        "description": "Analyze the existing codebase to identify the prompt refinement module, configuration loaders, and integration points for OpenAI calls",
-        "details": "Search codebase for files containing OpenAI API calls, prompt refinement logic, and configuration loading. Document the following: (1) Location of prompt refinement service/module, (2) Current OpenAI integration patterns, (3) Configuration loader for environment variables, (4) Existing error handling and retry mechanisms, (5) Test suite structure and conventions. Create documentation of findings to guide implementation.",
-        "testStrategy": "Manual code exploration and documentation review. Verify findings by running existing tests and tracing code execution paths.",
+        "id": 161,
+        "title": "Codebase Reconnaissance for Prompt Refinement Module",
+        "description": "Analyze existing codebase to identify prompt refinement module, configuration loaders, and integration points",
+        "details": "Search codebase for existing prompt refinement implementation, likely in services or utilities directories. Identify files handling OpenAI API calls, configuration loading patterns, environment variable usage, and existing test structures. Document file paths, module names, function signatures, and integration points. Look for patterns like 'openai', 'prompt', 'refine' in file names and code. Map out the current flow from user input to OpenAI API response.",
+        "testStrategy": "Create documentation of discovered modules and integration points. Verify understanding by tracing through existing prompt refinement flow in test environment.",
         "priority": "high",
         "dependencies": [],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 122,
-        "title": "Implement Model String Parser",
-        "description": "Create a utility function to parse model strings in the format 'provider/model' and extract provider and model components",
-        "details": "Implement parseModelString(modelStr) function that: (1) Splits input on '/' delimiter, (2) Validates format has exactly 2 parts, (3) Returns {provider, model} object, (4) Defaults to {provider: 'openai', model: 'o4-mini'} when input is empty/null, (5) Throws validation error for malformed strings, (6) Sanitizes inputs to prevent injection attacks. Follow existing code patterns and error handling conventions.",
-        "testStrategy": "Unit tests covering valid inputs ('openai/gpt-4', 'anthropic/claude-3'), invalid inputs (empty string, malformed format), edge cases (extra slashes, special characters), and default behavior.",
+        "id": 162,
+        "title": "Design Model String Parser and Validation",
+        "description": "Implement parsing logic for provider/model format with validation",
+        "details": "Create a utility function to parse model strings in format 'provider/model'. Split on '/' delimiter and validate both parts are non-empty strings. Implement validation patterns - provider should be alphanumeric, model should conform to expected naming conventions. Add default fallback to 'openai/o4-mini' when no model specified. Include error handling for malformed strings, empty inputs, and invalid characters.",
+        "testStrategy": "Unit tests covering valid formats (openai/gpt-4, anthropic/claude-3), invalid formats (no slash, empty parts, special characters), edge cases (multiple slashes, whitespace), and default behavior when input is null/undefined.",
         "priority": "high",
         "dependencies": [
-          121
+          161
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 123,
+        "id": 163,
         "title": "Extend Configuration Loader for OpenRouter API Key",
-        "description": "Update the existing configuration module to read OPENROUTER_API_KEY from environment variables",
-        "details": "Modify existing configuration loader to: (1) Add OPENROUTER_API_KEY to environment variable reading, (2) Validate API key presence when OpenRouter provider is used, (3) Ensure secure handling (no logging of key values), (4) Follow existing patterns for OpenAI key handling, (5) Add validation at startup to warn about missing keys. Maintain backward compatibility with existing OpenAI configuration.",
-        "testStrategy": "Unit tests for configuration loading with and without OPENROUTER_API_KEY set. Integration tests to verify startup validation. Security tests to ensure keys are not logged.",
+        "description": "Update configuration system to load OPENROUTER_API_KEY from environment",
+        "details": "Modify existing configuration loader to read OPENROUTER_API_KEY environment variable alongside existing OPENAI_API_KEY. Ensure both keys are validated at startup - log warnings if keys are missing but don't fail startup. Add configuration validation to ensure keys are properly formatted strings. Follow existing patterns for environment variable loading, caching, and error handling used in the current implementation.",
+        "testStrategy": "Unit tests for configuration loading with various combinations of present/missing API keys. Integration tests verifying configuration is properly loaded at startup. Test environment variable precedence and validation error handling.",
         "priority": "medium",
         "dependencies": [
-          121
+          161
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 124,
+        "id": 164,
         "title": "Implement OpenRouter HTTP Client",
-        "description": "Create a new function to handle HTTP requests to OpenRouter API following existing OpenAI client patterns",
-        "details": "Implement callOpenRouter(model, prompt, options) function that: (1) Uses same HTTP client as OpenAI calls, (2) Constructs proper OpenRouter API request format, (3) Handles authentication with OPENROUTER_API_KEY, (4) Implements same retry/backoff logic as OpenAI, (5) Maps response format to match OpenAI response structure, (6) Handles OpenRouter-specific error responses, (7) Uses HTTPS and follows security best practices.",
-        "testStrategy": "Unit tests with mocked HTTP responses. Integration tests with OpenRouter API (using test credentials). Error handling tests for network failures, API errors, and authentication issues.",
+        "description": "Create OpenRouter API client following existing OpenAI client patterns",
+        "details": "Implement OpenRouter API client reusing existing HTTP client patterns from OpenAI integration. Use same connection pooling, timeout settings, and retry logic. Create function callOpenRouter(modelName, prompt) that formats requests according to OpenRouter API specification. Include proper headers (Authorization, Content-Type), request body structure, and response parsing. Handle OpenRouter-specific error codes and rate limiting following existing error handling patterns.",
+        "testStrategy": "Unit tests with mocked HTTP responses covering successful requests, various error scenarios (401, 429, 500), timeout handling, and response parsing. Integration tests with actual OpenRouter API using test credentials.",
         "priority": "high",
         "dependencies": [
-          121,
-          123
+          163
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 125,
+        "id": 165,
         "title": "Create Provider Routing Logic",
-        "description": "Implement the main routing logic that directs requests to appropriate provider based on parsed model string",
-        "details": "Create routePromptRequest(modelStr, prompt, options) function that: (1) Uses parseModelString to extract provider and model, (2) Routes to existing OpenAI flow when provider='openai', (3) Routes to new OpenRouter flow for other providers, (4) Maintains consistent response format across providers, (5) Preserves existing error handling patterns, (6) Logs routing decisions (without sensitive data), (7) Implements fallback behavior for unknown providers.",
-        "testStrategy": "Unit tests covering all routing paths (OpenAI, OpenRouter, unknown provider). Integration tests with both providers. Error handling tests for malformed inputs and provider failures.",
+        "description": "Implement routing layer to direct requests to appropriate provider",
+        "details": "Create routing function that uses model string parser to extract provider and model, then switches on provider value. For 'openai' provider, call existing OpenAI client with extracted model name. For other providers, route to OpenRouter client. Implement proper error propagation from both client types. Add logging for routing decisions while ensuring API keys are never logged. Follow existing architectural patterns for service layer organization.",
+        "testStrategy": "Unit tests covering routing decisions for various provider/model combinations. Mock both OpenAI and OpenRouter clients to test routing logic independently. Verify error handling and logging behavior without exposing sensitive data.",
         "priority": "high",
         "dependencies": [
-          122,
-          124
+          162,
+          164
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 126,
-        "title": "Update Main Prompt Refinement Service Interface",
-        "description": "Modify the existing prompt refinement service to accept model parameter and use new routing logic",
-        "details": "Update main prompt refinement entry point to: (1) Accept model parameter in 'provider/model' format, (2) Replace direct OpenAI calls with router calls, (3) Maintain backward compatibility with existing callers, (4) Update function signatures and documentation, (5) Preserve existing response formats, (6) Handle validation at service boundary, (7) Ensure proper error propagation from routing layer.",
-        "testStrategy": "Unit tests for updated interface. Integration tests with various model formats. Regression tests to ensure existing functionality unchanged. Backward compatibility tests.",
+        "id": 166,
+        "title": "Update Prompt Refinement Service Interface",
+        "description": "Modify existing prompt refinement service to accept provider/model parameter",
+        "details": "Update the main prompt refinement service interface to accept model parameter in 'provider/model' format. Integrate routing logic into existing service flow while maintaining backward compatibility if needed. Ensure existing function signatures are preserved or properly deprecated. Update internal method calls to pass model parameter through the request chain. Maintain existing error handling, logging, and response formatting patterns.",
+        "testStrategy": "Integration tests verifying updated service works with both OpenAI and OpenRouter models. Regression tests ensuring existing functionality still works. Test parameter validation and error handling at service boundary.",
         "priority": "medium",
         "dependencies": [
-          125
+          165
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 127,
-        "title": "Add Input Validation and Security Measures",
-        "description": "Implement comprehensive input validation and security measures for provider and model parameters",
-        "details": "Implement validation layer that: (1) Validates provider names against allowlist, (2) Sanitizes model names to prevent injection, (3) Enforces character limits and patterns, (4) Validates required API keys are present before routing, (5) Implements rate limiting if needed, (6) Logs security events without exposing sensitive data, (7) Returns clear error messages for validation failures.",
-        "testStrategy": "Security tests for injection attempts, invalid characters, oversized inputs. Validation tests for each provider type. Error message tests to ensure no sensitive data exposure.",
+        "id": 167,
+        "title": "Implement Input Validation and Security Measures",
+        "description": "Add comprehensive input validation and security safeguards",
+        "details": "Implement strict input validation at service boundaries to prevent injection attacks. Validate provider and model strings against allowlists or regex patterns. Sanitize inputs before logging or passing to external APIs. Add rate limiting per provider if not already present. Ensure API keys are properly handled - never logged, transmitted securely, and validated at startup. Implement additional security headers for OpenRouter requests matching existing OpenAI security practices.",
+        "testStrategy": "Security tests including malicious input attempts, injection attack scenarios, and API key exposure checks. Penetration testing of input validation. Verify logging doesn't contain sensitive data through log analysis.",
         "priority": "high",
         "dependencies": [
-          125
+          165
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 128,
-        "title": "Implement Performance Monitoring and Metrics",
-        "description": "Add performance monitoring to measure latency impact and collect metrics per provider",
-        "details": "Add monitoring capabilities: (1) Measure end-to-end latency before and after routing implementation, (2) Track success/failure rates per provider, (3) Monitor API response times for OpenAI vs OpenRouter, (4) Implement performance threshold alerts (<5% latency increase), (5) Add metrics collection for usage tracking, (6) Log performance data for analysis, (7) Create performance dashboard if infrastructure supports it.",
-        "testStrategy": "Performance tests comparing before/after latency. Load tests with both providers. Metrics validation tests. Threshold breach tests.",
+        "id": 168,
+        "title": "Add Performance Monitoring and Metrics",
+        "description": "Implement performance tracking for both providers with latency measurement",
+        "details": "Add performance monitoring to track request latency, success rates, and error rates per provider. Implement metrics collection that measures end-to-end response times before and after the routing changes. Set up alerting for latency increases >5% or error rate spikes. Use existing monitoring infrastructure if available, or integrate lightweight metrics collection. Include provider-specific dashboards showing usage patterns and performance comparisons.",
+        "testStrategy": "Performance tests measuring baseline latency and comparing with post-implementation metrics. Load testing with various provider/model combinations. Verification that metrics are properly collected and alerting thresholds work correctly.",
         "priority": "medium",
         "dependencies": [
-          126
+          166
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 129,
-        "title": "Create Comprehensive Test Suite",
-        "description": "Develop full regression test suite covering all new functionality and existing behavior preservation",
-        "details": "Create comprehensive test coverage: (1) Unit tests for all new functions and classes, (2) Integration tests with both OpenAI and OpenRouter, (3) End-to-end tests for complete prompt refinement flow, (4) Error handling tests for all failure scenarios, (5) Performance regression tests, (6) Security tests for input validation, (7) Backward compatibility tests, (8) Mock external API calls for reliable testing.",
-        "testStrategy": "Achieve >90% code coverage. Automated test suite in CI/CD. Manual testing with real API endpoints. Performance benchmarking tests.",
+        "id": 169,
+        "title": "Comprehensive Integration Testing",
+        "description": "Create end-to-end integration tests covering all provider routing scenarios",
+        "details": "Develop comprehensive integration test suite covering all routing scenarios: OpenAI requests with various models, OpenRouter requests with different models, error handling for invalid providers, fallback behavior, and API key validation. Test real API interactions using test credentials. Include load testing to verify performance requirements. Create test data sets covering edge cases and typical usage patterns. Ensure tests can run in CI/CD pipeline.",
+        "testStrategy": "End-to-end tests with real API calls to both providers. Automated test suite covering happy path, error scenarios, and performance requirements. CI/CD integration ensuring tests pass before deployment.",
         "priority": "medium",
         "dependencies": [
-          127
+          167,
+          168
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 130,
+        "id": 170,
         "title": "Documentation and Deployment Preparation",
-        "description": "Create documentation for the new multi-provider feature and prepare for deployment",
-        "details": "Complete implementation with: (1) Update API documentation with new model format examples, (2) Create configuration guide for OPENROUTER_API_KEY setup, (3) Document provider-specific behavior differences, (4) Update deployment scripts if needed, (5) Create troubleshooting guide for common issues, (6) Prepare rollback procedures, (7) Update environment variable templates, (8) Create usage examples for both providers.",
-        "testStrategy": "Documentation review by team members. Deployment dry-run in staging environment. Rollback procedure testing. Configuration validation in different environments.",
-        "priority": "low",
+        "description": "Create documentation and prepare for production deployment",
+        "details": "Create comprehensive documentation covering new model format usage, configuration requirements, provider setup instructions, and troubleshooting guide. Update API documentation if exposed externally. Create deployment guide including environment variable setup, rollback procedures, and monitoring setup. Prepare production configuration templates and validation scripts. Document provider-specific considerations and limitations. Create user guide for new model format usage.",
+        "testStrategy": "Documentation review by technical stakeholders. Deployment dry-run in staging environment. Validation that all documented procedures work correctly. User acceptance testing of documentation clarity and completeness.",
+        "priority": "medium",
         "dependencies": [
-          128,
-          129
+          169
         ],
         "status": "pending",
         "subtasks": []
@@ -135,7 +134,7 @@
     ],
     "metadata": {
       "created": "2025-08-04T03:18:39.436Z",
-      "updated": "2025-08-04T08:21:15.606Z",
+      "updated": "2025-08-04T21:51:36.545Z",
       "description": "Tasks for master context"
     }
   }
