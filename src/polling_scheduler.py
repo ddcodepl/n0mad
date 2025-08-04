@@ -5,7 +5,6 @@ Implements circuit breaker pattern and comprehensive error handling.
 
 import time
 import threading
-import signal
 from typing import Callable, Optional, Dict, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -93,10 +92,6 @@ class PollingScheduler:
         # Metrics
         self.metrics = PollingMetrics()
         
-        # Signal handlers for graceful shutdown
-        self._original_sigint_handler = None
-        self._original_sigterm_handler = None
-        
         logger.info("🕒 Polling scheduler initialized")
     
     def start(self) -> bool:
@@ -120,9 +115,6 @@ class PollingScheduler:
             logger.info("🚀 Starting continuous polling scheduler...")
             
             try:
-                # Setup signal handlers for graceful shutdown
-                self._setup_signal_handlers()
-                
                 # Reset shutdown event
                 self._shutdown_event.clear()
                 
@@ -181,9 +173,6 @@ class PollingScheduler:
                     if self._polling_thread.is_alive():
                         logger.warning(f"⚠️ Polling thread did not stop within {timeout} seconds")
                         return False
-                
-                # Restore original signal handlers
-                self._restore_signal_handlers()
                 
                 self._state = SchedulerState.STOPPED
                 logger.info("✅ Polling scheduler stopped successfully")
@@ -331,28 +320,16 @@ class PollingScheduler:
                 self.metrics.total_polls
             )
     
-    def _setup_signal_handlers(self):
-        """Setup signal handlers for graceful shutdown."""
-        self._original_sigint_handler = signal.signal(signal.SIGINT, self._signal_handler)
-        self._original_sigterm_handler = signal.signal(signal.SIGTERM, self._signal_handler)
-    
-    def _restore_signal_handlers(self):
-        """Restore original signal handlers."""
-        if self._original_sigint_handler:
-            signal.signal(signal.SIGINT, self._original_sigint_handler)
-        if self._original_sigterm_handler:
-            signal.signal(signal.SIGTERM, self._original_sigterm_handler)
-    
-    def _signal_handler(self, signum, frame):
-        """Handle shutdown signals."""
-        signal_name = "SIGINT" if signum == signal.SIGINT else "SIGTERM"
-        logger.info(f"📡 Received {signal_name}, initiating graceful shutdown...")
-        self.stop()
     
     def get_state(self) -> SchedulerState:
         """Get current scheduler state."""
         with self._state_lock:
             return self._state
+    
+    def request_shutdown(self):
+        """Request graceful shutdown of the polling scheduler."""
+        logger.info("📡 Shutdown requested for polling scheduler...")
+        self._shutdown_event.set()
     
     def get_metrics(self) -> Dict[str, Any]:
         """

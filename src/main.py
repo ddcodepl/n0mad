@@ -148,8 +148,8 @@ class NotionDeveloper:
         
         # Stop polling scheduler if active
         if hasattr(self, 'polling_scheduler'):
-            logger.info("⏹️ Stopping polling scheduler...")
-            self.polling_scheduler.stop(timeout=30.0)
+            logger.info("⏹️ Requesting polling scheduler shutdown...")
+            self.polling_scheduler.request_shutdown()
         
         # Request cancellation for multi-queue processor if active
         if hasattr(self, 'multi_queue_processor'):
@@ -536,10 +536,6 @@ class NotionDeveloper:
                 # Check if continuous polling is enabled
                 if config_manager.get_enable_continuous_polling():
                     logger.info("🕒 Continuous polling enabled - starting polling scheduler...")
-                    
-                    # Setup signal handlers for graceful shutdown
-                    signal.signal(signal.SIGINT, self.signal_handler)
-                    signal.signal(signal.SIGTERM, self.signal_handler)
                     
                     # Start the polling scheduler
                     if self.polling_scheduler.start():
