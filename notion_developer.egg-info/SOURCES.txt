@@ -1,0 +1,8 @@
+README.md
+main.py
+pyproject.toml
+notion_developer.egg-info/PKG-INFO
+notion_developer.egg-info/SOURCES.txt
+notion_developer.egg-info/dependency_links.txt
+notion_developer.egg-info/requires.txt
+notion_developer.egg-info/top_level.txt

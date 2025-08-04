@@ -1,0 +1,142 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 61,
+        "title": "Setup Node.js Dependencies and Project Structure",
+        "description": "Install required Node.js packages (axios@1.4, fs-extra@11, dotenv@16) and create the task processing script structure",
+        "details": "Create package.json with required dependencies: axios for HTTP requests, fs-extra for file operations, and dotenv for environment variables. Initialize the main processing script file with basic structure including imports and configuration setup. Set up environment variable loading for API tokens and configuration.",
+        "testStrategy": "Verify package installation with npm list, test environment variable loading, and validate basic script execution without errors",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 62,
+        "title": "Implement Tickets API Integration",
+        "description": "Create service module to interact with internal Tickets API v2.1 for fetching and updating ticket status",
+        "details": "Implement API client with OAuth2 bearer token authentication. Create functions: fetchQueuedTasks() to GET tickets filtered by status='Queued to run', updateTicketStatus() to PATCH /tickets/{id} with status updates, and updateTicketFeedback() to PATCH feedback property with timestamped messages. Include error handling and retry logic (up to 3 attempts).",
+        "testStrategy": "Unit tests for API functions with mocked responses, integration tests with actual API endpoints, verify OAuth2 authentication and error handling scenarios",
+        "priority": "high",
+        "dependencies": [
+          61
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 63,
+        "title": "Implement Claude Service Integration",
+        "description": "Create Claude API client to invoke task processing with skipPermissions flag",
+        "details": "Implement invokeClaude() function that sends POST request to /claude/run endpoint with payload: {skipPermissions: true, prompt: 'Process all tasks from the task master, don't stop unless you finish all of the tasks, after that close the app'}. Include timeout handling (30 minutes max) to prevent infinite loops and proper error handling for Claude service failures.",
+        "testStrategy": "Mock Claude API responses for success/failure scenarios, test timeout behavior, verify skipPermissions flag is correctly set, integration test with actual Claude service",
+        "priority": "high",
+        "dependencies": [
+          61
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 64,
+        "title": "Implement File System Operations",
+        "description": "Create file handling module for copying task files between directories",
+        "details": "Using fs-extra module, implement copyTaskFileIfNeeded() function that reads first ticket's id property, locates task file at tasks/tasks/<id>.json, and copies contents to <parent_directory>/.ticketmaster/tasks/tasks.json. Include path sanitization to prevent directory traversal attacks and error handling for file operations.",
+        "testStrategy": "Unit tests for file copy operations, test path sanitization security, verify file permissions and error handling when files don't exist or are inaccessible",
+        "priority": "medium",
+        "dependencies": [
+          61
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 65,
+        "title": "Implement Core Task Processing Logic",
+        "description": "Create main processTask() function that orchestrates the complete task lifecycle",
+        "details": "Implement processTask(task) function using command pattern: 1) updateStatus('In progress'), 2) updateFeedback with refining timestamp, 3) copyTaskFileIfNeeded(), 4) invokeClaude(), 5) updateFeedback with executing timestamp, 6) updateFeedback with closing timestamp, 7) updateStatus('Done'). Include comprehensive error handling and rollback logic for failed operations.",
+        "testStrategy": "Integration tests covering complete task processing flow, test error scenarios at each step, verify status transitions and feedback updates, test rollback behavior on failures",
+        "priority": "high",
+        "dependencies": [
+          62,
+          63,
+          64
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 66,
+        "title": "Implement Status Lifecycle Management",
+        "description": "Create status management system to handle ticket status transitions from 'Queued to run' to 'In progress' to 'Done'",
+        "details": "Implement status validation and transition logic ensuring tickets can only move through valid state transitions. Create updateTicketStatus() wrapper that validates current status before attempting updates. Add logging for all status changes and implement atomic status updates to prevent race conditions.",
+        "testStrategy": "Test all valid status transitions, verify invalid transitions are rejected, test concurrent status update scenarios, validate status persistence",
+        "priority": "medium",
+        "dependencies": [
+          62
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 67,
+        "title": "Implement Feedback System with Timestamped Messages",
+        "description": "Create feedback logging system that adds timestamped messages at each processing stage",
+        "details": "Implement updateFeedback() function that appends ISO timestamp with stage descriptions ('refining', 'executing', 'closing') to ticket Feedback property. Create helper functions for generating consistent timestamp formats and stage messages. Ensure feedback updates don't overwrite existing feedback but append to it.",
+        "testStrategy": "Test timestamp format consistency, verify feedback messages are properly appended, test concurrent feedback updates, validate ISO timestamp generation",
+        "priority": "medium",
+        "dependencies": [
+          62
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 68,
+        "title": "Implement Batch Processing and Concurrency Control",
+        "description": "Add support for processing multiple queued tasks with configurable concurrency limits",
+        "details": "Implement fetchQueuedTasks() to enumerate all tickets with status 'Queued to run' and process them according to MAX_CONCURRENT environment variable (default 1). Add queue management logic to handle task ordering and implement semaphore-based concurrency control to prevent overwhelming downstream services.",
+        "testStrategy": "Test with multiple queued tasks, verify concurrency limits are respected, test queue ordering, validate behavior when MAX_CONCURRENT is exceeded",
+        "priority": "medium",
+        "dependencies": [
+          65
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 69,
+        "title": "Add Comprehensive Error Handling and Retry Logic",
+        "description": "Implement robust error handling with retry mechanisms and proper logging",
+        "details": "Add try-catch blocks around all API calls and file operations with exponential backoff retry logic (up to 3 attempts). Implement specific error handling for network timeouts, API rate limits, file system errors, and Claude service failures. Create detailed error logging with context information and implement graceful degradation strategies.",
+        "testStrategy": "Test retry logic with simulated failures, verify exponential backoff timing, test error logging detail, validate graceful handling of permanent failures",
+        "priority": "high",
+        "dependencies": [
+          65
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 70,
+        "title": "Add Security Measures and Audit Logging",
+        "description": "Implement security controls including path sanitization, secure token handling, and comprehensive audit logging",
+        "details": "Implement path sanitization to prevent directory traversal attacks in file operations. Create secure API token management using environment variables or secret management systems. Add comprehensive audit logging for all status transitions, API calls, and file operations with structured log format suitable for monitoring and compliance.",
+        "testStrategy": "Test path sanitization against malicious inputs, verify secure token handling, validate audit log completeness and format, test log rotation and retention policies",
+        "priority": "high",
+        "dependencies": [
+          64,
+          67
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-08-04T03:18:39.436Z",
+      "updated": "2025-08-04T06:09:52.475Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

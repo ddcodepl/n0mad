@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__task-master-ai__*",
+      "mcp__task-master-ai__get_tasks",
+      "mcp__task-master-ai__get_task",
+      "Bash(pip install:*)",
+      "Bash(uv venv:*)",
+      "Bash(source:*)",
+      "Bash(uv pip install:*)",
+      "mcp__task-master-ai__set_task_status",
+      "Bash(python:*)",
+      "mcp__task-master-ai__initialize_project",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(ls:*)",
+      "Bash(true)",
+      "Bash(chmod:*)",
+      "Bash(timeout:*)",
+      "WebFetch(domain:developers.notion.com)",
+      "WebFetch(domain:stackoverflow.com)",
+      "Bash(find:*)",
+      "Bash(uv run:*)",
+      "Bash(rm:*)",
+      "mcp__task-master-ai__parse_prd"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "task-master-ai"
+  ]
+}

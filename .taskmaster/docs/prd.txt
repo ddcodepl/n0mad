@@ -1,0 +1,211 @@
+# Nomad - Notion Developer Task Refinement Automation
+
+## Project Overview
+
+Nomad is an automated tool that continuously monitors Notion databases for tasks requiring refinement, processes them using OpenAI GPT models, and updates the tasks with enhanced content. The system provides a complete workflow from task discovery to refined output with comprehensive error handling and logging.
+
+## Core Features
+
+### 1. Notion Database Integration (CRITICAL CONTENT ISSUE TO FIX)
+- Continuous polling of Notion databases every 60 seconds
+- Authentication using Notion integration tokens
+- Query tasks by status ("To Refine")
+- **CRITICAL FIX NEEDED**: Complete content replacement instead of appending during refinement
+- **ISSUE**: Currently bold formatting and old content remains when refining tasks
+- **SOLUTION**: Clear all existing page content/blocks before writing refined content
+- Handle Notion API rate limits and errors
+
+### 2. OpenAI GPT Integration
+- Process task content using GPT-4 or compatible models
+- Intelligent content refinement and enhancement
+- Configurable prompts for different task types
+- Token usage optimization and cost management
+- Error handling for API failures
+
+### 3. File Management System
+- Save refined content to structured markdown files in tasks/ directory
+- Organize files with meaningful naming conventions
+- Handle file I/O errors gracefully
+- Support for different content formats
+
+### 4. Status Management
+- Track task progression through defined workflow states:
+  - Ideas: Initial task concepts
+  - To Refine: Ready for AI processing (monitored status)
+  - Refined: Successfully processed
+  - Failed: Processing error occurred
+- Atomic status updates to prevent data corruption
+- Rollback capabilities for failed operations
+
+### 5. Logging and Monitoring
+- Comprehensive console logging for real-time monitoring
+- Persistent log files (nomad.log) with timestamps
+- Performance metrics tracking (processing times, success rates)
+- Error categorization and reporting
+- Graceful shutdown with final statistics
+
+### 6. Configuration Management
+- Environment variable configuration (.env file)
+- Support for multiple Notion databases
+- Configurable polling intervals
+- OpenAI model selection and parameters
+- Logging level configuration
+
+## Technical Requirements
+
+### Environment Setup
+- Python 3.11+ compatibility
+- Virtual environment support (uv venv)
+- Package management using uv
+- Cross-platform compatibility (Windows, macOS, Linux)
+
+### Dependencies
+- aiohttp: Async HTTP client for API calls
+- notion-client: Official Notion API client
+- openai: OpenAI API integration
+- python-dotenv: Environment variable management
+
+### Performance Requirements
+- Handle concurrent task processing
+- Memory-efficient for long-running operations
+- Responsive to shutdown signals (Ctrl+C)
+- Minimal CPU usage during polling intervals
+
+### Security Requirements  
+- Secure API key management
+- No sensitive data in logs
+- Encrypted API communications
+- Input validation for all external data
+
+## API Integrations
+
+### Notion API
+- Database querying and filtering
+- Page property updates
+- Content retrieval and modification
+- Error handling for API limits and failures
+
+### OpenAI API
+- Text completion and chat completion endpoints
+- Streaming response handling
+- Token counting and cost management
+- Model fallback strategies
+
+## Error Handling Strategy
+
+### Notion API Errors
+- Rate limit handling with exponential backoff
+- Network timeout management
+- Invalid database/page ID handling
+- Authentication failure recovery
+
+### OpenAI API Errors
+- API quota exceeded handling
+- Model availability issues
+- Content policy violations
+- Network connectivity problems
+
+### File System Errors
+- Disk space management
+- Permission handling
+- Concurrent file access protection
+- Backup and recovery procedures
+
+## Deployment and Operations
+
+### Local Development
+- Easy setup with uv package manager
+- Environment variable configuration
+- Development logging modes
+- Hot-reload capabilities for testing
+
+### Production Deployment
+- Service/daemon deployment options
+- Health check endpoints
+- Monitoring and alerting integration
+- Log rotation and management
+
+## User Experience
+
+### Setup Process
+1. Clone repository and install dependencies
+2. Configure environment variables (.env)
+3. Set up Notion integration and database
+4. Run application with simple command
+
+### Runtime Experience
+- Clear console output showing processing status
+- Progress indicators for long-running operations
+- Informative error messages with suggested actions
+- Clean shutdown process with summary statistics
+
+## IMMEDIATE FIXES REQUIRED
+
+### Content Processing Bug Fix (HIGH PRIORITY)
+**Current Problem**: 
+- When processing tasks from "To Refine" to "Refined" status, the system is appending refined content to existing content
+- Old formatting (bold text, original content) remains visible in the refined task
+- Results in cluttered, confusing task content with duplicated information
+
+**Root Cause Analysis Needed**:
+- Examine `content_processor.py` for content handling logic
+- Check `notion_wrapper.py` for page content update methods
+- Verify if using Notion block API correctly for content replacement
+
+**Required Solution**:
+1. **Complete Content Clearing**: Remove ALL existing blocks/content from Notion page before writing refined content
+2. **Clean Content Replacement**: Write only the refined content, ensuring no formatting artifacts remain
+3. **Verification Logic**: Confirm old content is completely removed before adding new content
+4. **Error Handling**: Handle failures in content clearing operations gracefully
+
+**Files to Investigate/Update**:
+- `src/content_processor.py` - Main content processing logic
+- `src/notion_wrapper.py` - Notion API interaction methods
+- `src/database_operations.py` - Database update operations
+
+**Success Criteria**:
+- Refined tasks contain ONLY the AI-generated content
+- No bold formatting or original content artifacts remain
+- Clean, readable refined content in both Notion and local markdown files
+
+## Future Enhancements
+
+### Advanced AI Features
+- Custom prompt templates for different task types
+- Multi-model support (Claude, Gemini, etc.)
+- Batch processing optimization
+- Content quality scoring
+
+### Notion Integration Enhancements
+- Support for multiple database monitoring
+- Custom property mapping
+- Webhook support for real-time updates
+- Advanced filtering and querying
+
+### Operational Improvements
+- Web dashboard for monitoring
+- Configurable retry strategies
+- Performance analytics
+- Integration with project management tools
+
+## Success Metrics
+
+### Functional Metrics
+- Task processing accuracy (>95%)
+- API reliability (>99% uptime)
+- File operation success rate (>99.9%)
+- Status update consistency (100%)
+
+### Performance Metrics
+- Average task processing time (<30 seconds)
+- Memory usage stability (<200MB)
+- Response time to new tasks (<60 seconds)
+- System resource efficiency
+
+### User Experience Metrics
+- Setup time for new users (<10 minutes)
+- Error recovery success rate (>90%)
+- Log clarity and usefulness
+- Documentation completeness
+
+This PRD defines a robust, production-ready automation tool that bridges Notion and OpenAI capabilities while maintaining high standards for reliability, performance, and user experience.
