@@ -51,8 +51,21 @@ class ClaudeEngineInvoker:
         self._max_history = 100
         self._active_processes: Dict[str, subprocess.Popen] = {}
         
-        # Predefined prompt as specified in the requirements
-        self.predefined_prompt = "execute tasks from task master, don't stop until you finish"
+        # Base prompt template - will be customized per task
+        self.base_prompt_template = """Execute TaskMaster task for ticket: {ticket_id}
+
+Task Context:
+- Ticket ID: {ticket_id}
+- Notion Page ID: {page_id}
+
+Instructions:
+1. Use `task-master next` to find the next available task
+2. Use `task-master show <id>` to get detailed task information
+3. Implement the task requirements following the specifications
+4. Mark tasks as completed using `task-master set-status --id=<id> --status=done`
+5. Continue until all pending tasks for this ticket are complete
+
+Focus on implementing actual code changes as specified in the task requirements. Don't stop until all tasks are properly implemented and working."""
         
         logger.info(f"🤖 ClaudeEngineInvoker initialized with timeout: {timeout_minutes}m, retries: {max_retries}")
         logger.info(f"📁 Project root: {project_root}")
@@ -77,13 +90,19 @@ class ClaudeEngineInvoker:
             start_time=datetime.now()
         )
         
+        # Generate customized prompt for this specific task
+        customized_prompt = self.base_prompt_template.format(
+            ticket_id=ticket_id,
+            page_id=page_id
+        )
+        
         # Audit logging - log invocation attempt
         logger.info(f"🚀 Starting Claude engine invocation")
         logger.info(f"   🎫 Ticket ID: {ticket_id}")
         logger.info(f"   📄 Page ID: {page_id[:8]}...")
         logger.info(f"   🆔 Invocation ID: {invocation_id}")
         logger.info(f"   ⏰ Timeout: {self.timeout_seconds}s")
-        logger.info(f"   📝 Prompt: {self.predefined_prompt}")
+        logger.info(f"   📝 Prompt: {customized_prompt[:100]}...")
         
         with self._invocation_lock:
             try:
@@ -94,7 +113,7 @@ class ClaudeEngineInvoker:
                         time.sleep(2 ** attempt)  # Exponential backoff
                     
                     try:
-                        result = self._execute_claude_command(invocation)
+                        result = self._execute_claude_command(invocation, customized_prompt)
                         
                         if result.result == InvocationResult.SUCCESS:
                             logger.info(f"✅ Claude engine invocation successful on attempt {attempt + 1}")
@@ -143,22 +162,23 @@ class ClaudeEngineInvoker:
                 self._add_to_history(invocation)
                 return invocation
     
-    def _execute_claude_command(self, invocation: ClaudeInvocation) -> ClaudeInvocation:
+    def _execute_claude_command(self, invocation: ClaudeInvocation, prompt: str) -> ClaudeInvocation:
         """
-        Execute the Claude Code CLI command.
+        Execute the Claude Code CLI command with the specified prompt.
         
         Args:
             invocation: ClaudeInvocation object to update
+            prompt: Customized prompt for this specific task
             
         Returns:
             Updated ClaudeInvocation object
         """
         try:
             # Construct Claude Code CLI command
-            # Using the -p flag to pass the prompt directly
+            # Using the -p flag to pass the customized prompt directly
             cmd = [
                 "claude",
-                "-p", self.predefined_prompt
+                "-p", prompt
             ]
             
             logger.info(f"🔧 Executing command: {' '.join(cmd)}")

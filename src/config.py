@@ -3,7 +3,7 @@ Configuration constants for the Notion Developer application.
 """
 
 # Default AI model for processing content
-DEFAULT_MODEL = "o4-mini"
+DEFAULT_MODEL = "openai/o4-mini"
 
 # System prompt for refining and structuring content
 REFINEMENT_PROMPT = """You are a Senior Software Architect with 15+ years of experience in enterprise software development, system design, and agile methodologies.
