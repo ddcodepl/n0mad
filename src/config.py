@@ -9,6 +9,7 @@ DEFAULT_MODEL = "openai/o4-mini"
 DEFAULT_ENABLE_CONTINUOUS_POLLING = False
 DEFAULT_POLLING_INTERVAL_MINUTES = 1
 MIN_POLLING_INTERVAL_MINUTES = 1
+MAX_POLLING_INTERVAL_MINUTES = 1440  # 24 hours maximum
 
 # System prompt for refining and structuring content
 REFINEMENT_PROMPT = """You are a Senior Software Architect with 15+ years of experience in enterprise software development, system design, and agile methodologies.
@@ -140,8 +141,11 @@ class ConfigurationManager:
             try:
                 interval = int(os.environ['POLLING_INTERVAL_MINUTES'])
                 self.set_polling_interval_minutes(interval)
-            except ValueError:
-                raise ValueError(f"Invalid POLLING_INTERVAL_MINUTES value: {os.environ['POLLING_INTERVAL_MINUTES']}. Must be an integer >= {MIN_POLLING_INTERVAL_MINUTES}")
+            except ValueError as e:
+                if "must be an integer" in str(e):
+                    raise ValueError(f"Invalid POLLING_INTERVAL_MINUTES value: {os.environ['POLLING_INTERVAL_MINUTES']}. Must be an integer between {MIN_POLLING_INTERVAL_MINUTES} and {MAX_POLLING_INTERVAL_MINUTES}")
+                else:
+                    raise e
     
     def get_model(self) -> str:
         """Get the AI model configuration."""
@@ -173,6 +177,8 @@ class ConfigurationManager:
             raise ValueError("polling_interval_minutes must be an integer")
         if interval < MIN_POLLING_INTERVAL_MINUTES:
             raise ValueError(f"polling_interval_minutes must be >= {MIN_POLLING_INTERVAL_MINUTES} minute(s)")
+        if interval > MAX_POLLING_INTERVAL_MINUTES:
+            raise ValueError(f"polling_interval_minutes must be <= {MAX_POLLING_INTERVAL_MINUTES} minute(s)")
         self._config['polling_interval_minutes'] = interval
     
     def get_all_config(self) -> Dict[str, Any]:
@@ -207,10 +213,34 @@ class ConfigurationManager:
                 return False
             if self._config['polling_interval_minutes'] < MIN_POLLING_INTERVAL_MINUTES:
                 return False
+            if self._config['polling_interval_minutes'] > MAX_POLLING_INTERVAL_MINUTES:
+                return False
             
             return True
         except Exception:
             return False
+    
+    def get_polling_config_summary(self) -> Dict[str, Any]:
+        """Get a summary of polling configuration settings."""
+        return {
+            'enable_continuous_polling': self.get_enable_continuous_polling(),
+            'polling_interval_minutes': self.get_polling_interval_minutes(),
+            'polling_interval_seconds': self.get_polling_interval_minutes() * 60,
+            'min_interval_minutes': MIN_POLLING_INTERVAL_MINUTES,
+            'max_interval_minutes': MAX_POLLING_INTERVAL_MINUTES,
+            'is_valid': self.validate_config()
+        }
+    
+    def reset_polling_config(self) -> None:
+        """Reset polling configuration to default values."""
+        self._config['enable_continuous_polling'] = DEFAULT_ENABLE_CONTINUOUS_POLLING
+        self._config['polling_interval_minutes'] = DEFAULT_POLLING_INTERVAL_MINUTES
+    
+    def is_polling_enabled(self) -> bool:
+        """Check if continuous polling is enabled and properly configured."""
+        return (self.get_enable_continuous_polling() and 
+                self.validate_config() and
+                MIN_POLLING_INTERVAL_MINUTES <= self.get_polling_interval_minutes() <= MAX_POLLING_INTERVAL_MINUTES)
 
 
 # Global configuration instance

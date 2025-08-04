@@ -17,6 +17,16 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# New polling-specific performance metrics
+POLLING_METRICS = {
+    'polling_cycle_duration': 'seconds',
+    'polling_interval_drift': 'seconds', 
+    'database_query_latency': 'milliseconds',
+    'task_processing_throughput': 'tasks_per_minute',
+    'polling_success_rate': 'percentage',
+    'polling_error_rate': 'percentage'
+}
+
 
 class PerformanceLevel(str, Enum):
     EXCELLENT = "excellent"
@@ -29,6 +39,45 @@ class SLAStatus(str, Enum):
     COMPLIANT = "compliant"
     AT_RISK = "at_risk"
     VIOLATED = "violated"
+
+
+@dataclass
+class PollingPerformanceMetrics:
+    """Polling-specific performance metrics tracking"""
+    cycle_start_time: Optional[datetime] = None
+    expected_interval: float = 60.0  # seconds
+    cycles_completed: int = 0
+    successful_polls: int = 0
+    failed_polls: int = 0
+    total_tasks_processed: int = 0
+    database_query_times: List[float] = field(default_factory=list)
+    interval_drifts: List[float] = field(default_factory=list)
+    
+    def calculate_success_rate(self) -> float:
+        """Calculate polling success rate as percentage."""
+        total_polls = self.successful_polls + self.failed_polls
+        if total_polls == 0:
+            return 100.0
+        return (self.successful_polls / total_polls) * 100.0
+    
+    def calculate_throughput(self, window_minutes: int = 60) -> float:
+        """Calculate tasks processed per minute."""
+        if self.cycles_completed == 0:
+            return 0.0
+        # Estimate based on completed cycles and time window
+        return self.total_tasks_processed / max(window_minutes, 1)
+    
+    def get_average_query_latency(self) -> float:
+        """Get average database query latency in milliseconds."""
+        if not self.database_query_times:
+            return 0.0
+        return statistics.mean(self.database_query_times) * 1000  # Convert to ms
+    
+    def get_average_interval_drift(self) -> float:
+        """Get average polling interval drift in seconds."""
+        if not self.interval_drifts:
+            return 0.0
+        return statistics.mean(self.interval_drifts)
 
 
 @dataclass

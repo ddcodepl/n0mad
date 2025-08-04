@@ -1,18 +1,15 @@
 {
   "allowedTools": [
-    "Edit",
-    "MultiEdit",
-    "Write",
-    "Read",
-    "Bash",
-    "LS",
-    "Glob",
-    "Grep",
-    "mcp__task_master_ai__*"
+    "*"
   ],
   "autoApprove": true,
-  "headless": true,
+  "dangerouslySkipPermissions": true,
+  "skipPermissions": true,
+  "headless": false,
   "maxTokens": 200000,
-  "temperature": 0.1,
-  "workingDirectory": "/Users/damian/Web/ddcode/nomad"
+  "workingDirectory": "/Users/damian/Web/ddcode/nomad",
+  "allowFileModification": true,
+  "allowCodeExecution": true,
+  "allowNetworkAccess": true,
+  "trustAllTools": true
 }
