@@ -36,6 +36,7 @@ from performance_integration import (
 )
 from logging_config import get_logger
 from config import config_manager
+from simple_queued_processor import SimpleQueuedProcessor
 
 load_dotenv()
 
@@ -716,14 +717,15 @@ def main():
     parser.add_argument("--refine", action="store_true", help="Run in refine mode (process 'To Refine' status tasks)")
     parser.add_argument("--prepare", action="store_true", help="Run in prepare mode (process 'Prepare Tasks' status)")
     parser.add_argument("--queued", action="store_true", help="Run in queued mode (process 'Queued to run' status tasks)")
+    parser.add_argument("--simple-queued", action="store_true", help="Run in simple queued mode (new simplified logic)")
     
     args = parser.parse_args()
     
     # Determine mode
-    mode_count = sum([args.refine, args.prepare, args.queued])
+    mode_count = sum([args.refine, args.prepare, args.queued, args.simple_queued])
     if mode_count > 1:
         logger.error("Cannot specify multiple modes")
-        logger.error("Usage: uv run main.py --refine OR uv run main.py --prepare OR uv run main.py --queued")
+        logger.error("Usage: uv run main.py --refine OR uv run main.py --prepare OR uv run main.py --queued OR uv run main.py --simple-queued")
         sys.exit(1)
     elif args.refine:
         mode = "refine"
@@ -731,9 +733,15 @@ def main():
         mode = "prepare"
     elif args.queued:
         mode = "queued"
+    elif args.simple_queued:
+        # Handle simple queued mode directly
+        project_root = os.path.dirname(os.path.dirname(__file__))
+        processor = SimpleQueuedProcessor(project_root)
+        success = processor.process_queued_tasks()
+        sys.exit(0 if success else 1)
     else:
-        logger.error("Must specify one of: --refine, --prepare, or --queued mode")
-        logger.error("Usage: uv run main.py --refine OR uv run main.py --prepare OR uv run main.py --queued")
+        logger.error("Must specify one of: --refine, --prepare, --queued, or --simple-queued mode")
+        logger.error("Usage: uv run main.py --refine OR uv run main.py --prepare OR uv run main.py --queued OR uv run main.py --simple-queued")
         sys.exit(1)
     
     app = NotionDeveloper(mode=mode)
