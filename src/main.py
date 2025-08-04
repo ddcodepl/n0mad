@@ -22,6 +22,17 @@ from database_operations import DatabaseOperations
 from content_processor import ContentProcessor
 from file_operations import FileOperations
 from command_executor import CommandExecutor
+from status_transition_manager import StatusTransitionManager
+from feedback_manager import FeedbackManager, ProcessingStage
+from claude_engine_invoker import ClaudeEngineInvoker, InvocationResult
+from task_file_manager import TaskFileManager, CopyResult
+from multi_queue_processor import MultiQueueProcessor
+from performance_integration import (
+    initialize_performance_monitoring, 
+    integrate_all_components,
+    log_performance_summary,
+    PerformanceContext
+)
 from logging_config import get_logger
 
 load_dotenv()
@@ -57,6 +68,16 @@ class NotionDeveloper:
             # Task-master needs to run from project root where .taskmaster is located
             self.project_root = os.path.dirname(os.path.dirname(__file__))  # Go up from src to project root
             
+            # Initialize performance monitoring
+            logger.info("📊 Initializing performance monitoring...")
+            initialize_performance_monitoring(
+                collection_interval=2.0,  # Collect metrics every 2 seconds
+                history_size=500,         # Keep 500 metrics in history
+                enable_auto_gc=True,      # Enable automatic garbage collection
+                auto_start=True           # Start monitoring immediately
+            )
+            integrate_all_components()    # Integrate with all components
+            
             self.notion_client = NotionClientWrapper()
             self.openai_client = OpenAIClient()
             
@@ -69,6 +90,22 @@ class NotionDeveloper:
                 # Initialize both FileOperations and CommandExecutor with the same project root context
                 self.file_ops = FileOperations(base_dir=os.path.join(self.project_root, "src", "tasks"))
                 self.cmd_executor = CommandExecutor(base_dir=self.project_root)
+            elif mode == "queued":
+                # Initialize components needed for queued task processing
+                self.file_ops = FileOperations(base_dir=os.path.join(self.project_root, "src", "tasks"))
+                self.db_ops = DatabaseOperations(self.notion_client)
+                self.cmd_executor = CommandExecutor(base_dir=self.project_root)
+                self.status_manager = StatusTransitionManager(self.notion_client)
+                self.feedback_manager = FeedbackManager(self.notion_client)
+                self.claude_invoker = ClaudeEngineInvoker(self.project_root)
+                self.task_file_manager = TaskFileManager(self.project_root)
+                self.multi_queue_processor = MultiQueueProcessor(
+                    self.db_ops,
+                    self.status_manager, 
+                    self.feedback_manager,
+                    self.claude_invoker,
+                    self.task_file_manager
+                )
             
             if not self.notion_client.test_connection():
                 raise Exception("Failed to connect to Notion database")
@@ -83,6 +120,28 @@ class NotionDeveloper:
     def signal_handler(self, signum, frame):
         logger.info("Received shutdown signal. Gracefully stopping...")
         self.running = False
+        
+        # Cleanup Claude processes if in queued mode
+        if hasattr(self, 'claude_invoker'):
+            logger.info("🧹 Cleaning up active Claude processes...")
+            self.claude_invoker.cleanup_active_processes()
+        
+        # Cleanup old backup files if in queued mode
+        if hasattr(self, 'task_file_manager'):
+            logger.info("🧹 Cleaning up old backup files...")
+            cleanup_results = self.task_file_manager.cleanup_backups(max_age_days=7)
+            logger.info(f"🧹 Cleanup completed: {cleanup_results['cleaned_files']} files removed, {cleanup_results['total_size_freed']} bytes freed")
+        
+        # Request cancellation for multi-queue processor if active
+        if hasattr(self, 'multi_queue_processor'):
+            logger.info("⏹️ Requesting multi-queue processor cancellation...")
+            self.multi_queue_processor.request_cancellation()
+        
+        # Log final performance summary before shutdown
+        try:
+            log_performance_summary()
+        except Exception as e:
+            logger.warning(f"⚠️ Could not log performance summary during shutdown: {e}")
     
     def process_task_wrapper(self, task):
         """Wrapper function for concurrent task processing (refine mode only)"""
@@ -112,110 +171,111 @@ class NotionDeveloper:
         
         logger.info("Starting refine mode - processing tasks with 'To Refine' status...")
         
-        while self.running:
-            try:
-                self.stats["last_poll"] = datetime.now()
-                logger.info("="*50)
-                logger.info(f"Polling for tasks with 'To Refine' status...")
-                
-                tasks = self.db_ops.get_tasks_to_refine()
-                
-                # Filter out None tasks to prevent processing errors
-                if tasks:
-                    original_count = len(tasks)
-                    tasks = [task for task in tasks if task is not None]
-                    none_count = original_count - len(tasks)
-                    if none_count > 0:
-                        logger.warning(f"Filtered out {none_count} None tasks from {original_count} total")
+        with PerformanceContext("refine_mode_session"):
+            while self.running:
+                try:
+                    self.stats["last_poll"] = datetime.now()
+                    logger.info("="*50)
+                    logger.info(f"Polling for tasks with 'To Refine' status...")
                     
-                
-                if tasks:
-                    logger.info(f"Found {len(tasks)} valid tasks to process concurrently")
-                    processing_start_time = datetime.now()
+                    tasks = self.db_ops.get_tasks_to_refine()
                     
-                    # Process tasks concurrently using ThreadPoolExecutor
-                    max_concurrent_tasks = min(len(tasks), self.max_concurrent_tasks)
-                    logger.info(f"Processing {len(tasks)} tasks with {max_concurrent_tasks} concurrent workers (max configured: {self.max_concurrent_tasks})")
-                    
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent_tasks) as executor:
-                        # Submit all tasks for concurrent processing
-                        future_to_task = {
-                            executor.submit(self.process_task_wrapper, task): task 
-                            for task in tasks
-                        }
+                    # Filter out None tasks to prevent processing errors
+                    if tasks:
+                        original_count = len(tasks)
+                        tasks = [task for task in tasks if task is not None]
+                        none_count = original_count - len(tasks)
+                        if none_count > 0:
+                            logger.warning(f"Filtered out {none_count} None tasks from {original_count} total")
                         
-                        # Process completed tasks as they finish with responsive shutdown checking
-                        completed_tasks = 0
-                        while completed_tasks < len(tasks) and self.running:
-                            try:
-                                # Use timeout to check for shutdown periodically
-                                done_futures = []
-                                for future in concurrent.futures.as_completed(future_to_task, timeout=1.0):
-                                    done_futures.append(future)
-                                    completed_tasks += 1
-                                    break  # Process one task at a time to check shutdown frequently
-                                
-                                if not done_futures:
-                                    continue  # Timeout occurred, check shutdown and continue
-                                
-                                future = done_futures[0]
-                                task = future_to_task[future]
-                                
+                    
+                    if tasks:
+                        logger.info(f"Found {len(tasks)} valid tasks to process concurrently")
+                        processing_start_time = datetime.now()
+                        
+                        # Process tasks concurrently using ThreadPoolExecutor
+                        max_concurrent_tasks = min(len(tasks), self.max_concurrent_tasks)
+                        logger.info(f"Processing {len(tasks)} tasks with {max_concurrent_tasks} concurrent workers (max configured: {self.max_concurrent_tasks})")
+                        
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent_tasks) as executor:
+                            # Submit all tasks for concurrent processing
+                            future_to_task = {
+                                executor.submit(self.process_task_wrapper, task): task 
+                                for task in tasks
+                            }
+                            
+                            # Process completed tasks as they finish with responsive shutdown checking
+                            completed_tasks = 0
+                            while completed_tasks < len(tasks) and self.running:
                                 try:
-                                    result = future.result()
+                                    # Use timeout to check for shutdown periodically
+                                    done_futures = []
+                                    for future in concurrent.futures.as_completed(future_to_task, timeout=1.0):
+                                        done_futures.append(future)
+                                        completed_tasks += 1
+                                        break  # Process one task at a time to check shutdown frequently
                                     
-                                    if result["status"] == "completed":
-                                        self.stats["tasks_processed"] += 1
-                                        task_display_id = result.get('task_id', result.get('page_id', 'unknown'))
-                                        logger.info(f"✅ Task {task_display_id} processed successfully")
-                                    elif result["status"] == "failed":
-                                        self.stats["tasks_failed"] += 1
-                                        task_display_id = result.get('task_id', result.get('page_id', 'unknown'))
-                                        logger.error(f"❌ Task {task_display_id} failed: {result.get('error', 'Unknown error')}")
-                                    elif result["status"] == "aborted":
-                                        task_display_id = result.get('task_id', result.get('page_id', 'unknown'))
-                                        logger.info(f"⏹️  Task {task_display_id} aborted due to shutdown")
-                                    elif result["status"] == "skipped":
-                                        task_display_id = result.get('task_id', result.get('page_id', 'unknown'))
-                                        logger.info(f"⏭️  Task {task_display_id} skipped: {result.get('message', 'No reason provided')}")
+                                    if not done_futures:
+                                        continue  # Timeout occurred, check shutdown and continue
+                                    
+                                    future = done_futures[0]
+                                    task = future_to_task[future]
+                                    
+                                    try:
+                                        result = future.result()
                                         
-                                except concurrent.futures.CancelledError:
-                                    logger.info(f"⏹️  Task {task.get('id', 'unknown')} was cancelled due to shutdown")
-                                except Exception as e:
-                                    self.stats["tasks_failed"] += 1
-                                    logger.error(f"❌ Unexpected error processing task {task.get('id', 'unknown')}: {e}")
-                                    
-                            except concurrent.futures.TimeoutError:
-                                # Timeout is expected - allows us to check shutdown flag
-                                continue
+                                        if result["status"] == "completed":
+                                            self.stats["tasks_processed"] += 1
+                                            task_display_id = result.get('task_id', result.get('page_id', 'unknown'))
+                                            logger.info(f"✅ Task {task_display_id} processed successfully")
+                                        elif result["status"] == "failed":
+                                            self.stats["tasks_failed"] += 1
+                                            task_display_id = result.get('task_id', result.get('page_id', 'unknown'))
+                                            logger.error(f"❌ Task {task_display_id} failed: {result.get('error', 'Unknown error')}")
+                                        elif result["status"] == "aborted":
+                                            task_display_id = result.get('task_id', result.get('page_id', 'unknown'))
+                                            logger.info(f"⏹️  Task {task_display_id} aborted due to shutdown")
+                                        elif result["status"] == "skipped":
+                                            task_display_id = result.get('task_id', result.get('page_id', 'unknown'))
+                                            logger.info(f"⏭️  Task {task_display_id} skipped: {result.get('message', 'No reason provided')}")
+                                            
+                                    except concurrent.futures.CancelledError:
+                                        logger.info(f"⏹️  Task {task.get('id', 'unknown')} was cancelled due to shutdown")
+                                    except Exception as e:
+                                        self.stats["tasks_failed"] += 1
+                                        logger.error(f"❌ Unexpected error processing task {task.get('id', 'unknown')}: {e}")
+                                        
+                                except concurrent.futures.TimeoutError:
+                                    # Timeout is expected - allows us to check shutdown flag
+                                    continue
+                            
+                            # Cancel any remaining tasks if shutdown was requested
+                            if not self.running:
+                                logger.info("Shutdown requested, cancelling remaining tasks...")
+                                for remaining_future in future_to_task:
+                                    if not remaining_future.done():
+                                        remaining_future.cancel()
                         
-                        # Cancel any remaining tasks if shutdown was requested
-                        if not self.running:
-                            logger.info("Shutdown requested, cancelling remaining tasks...")
-                            for remaining_future in future_to_task:
-                                if not remaining_future.done():
-                                    remaining_future.cancel()
+                        processing_duration = datetime.now() - processing_start_time
+                        logger.info(f"🏁 Completed concurrent processing of {len(tasks)} tasks in {processing_duration}")
+                        
+                        # Log performance summary
+                        if len(tasks) > 1:
+                            avg_time_per_task = processing_duration.total_seconds() / len(tasks)
+                            logger.info(f"📊 Average processing time per task: {avg_time_per_task:.2f} seconds")
+                            logger.info(f"🚀 Concurrent processing efficiency: {max_concurrent_tasks}x parallelization")
+                    else:
+                        logger.info("No tasks found with 'To Refine' status")
                     
-                    processing_duration = datetime.now() - processing_start_time
-                    logger.info(f"🏁 Completed concurrent processing of {len(tasks)} tasks in {processing_duration}")
+                    self.log_statistics()
                     
-                    # Log performance summary
-                    if len(tasks) > 1:
-                        avg_time_per_task = processing_duration.total_seconds() / len(tasks)
-                        logger.info(f"📊 Average processing time per task: {avg_time_per_task:.2f} seconds")
-                        logger.info(f"🚀 Concurrent processing efficiency: {max_concurrent_tasks}x parallelization")
-                else:
-                    logger.info("No tasks found with 'To Refine' status")
-                
-                self.log_statistics()
-                
-                # Exit after one run instead of continuous loop
-                logger.info("Refine mode completed - exiting")
-                self.running = False
-                
-            except Exception as e:
-                logger.error(f"Error in refine mode: {e}")
-                self.running = False
+                    # Exit after one run instead of continuous loop
+                    logger.info("Refine mode completed - exiting")
+                    self.running = False
+                    
+                except Exception as e:
+                    logger.error(f"Error in refine mode: {e}")
+                    self.running = False
         
         logger.info("Refine mode stopped")
         self.log_final_statistics()
@@ -224,7 +284,8 @@ class NotionDeveloper:
         """Run the prepare mode (original main_workflow.py functionality)"""
         logger.info("🚀 Starting prepare mode - NotionTaskMasterWorkflow")
         
-        workflow_results = {
+        with PerformanceContext("prepare_mode_session"):
+            workflow_results = {
             "step_results": {},
             "overall_success": False,
             "successful_tickets": [],
@@ -390,6 +451,119 @@ class NotionDeveloper:
         
         return workflow_results
     
+    def run_queued_mode(self):
+        """Run the queued mode - process tasks with 'Queued to run' status using multi-queue orchestration"""
+        logger.info("🚀 Starting enhanced queued mode with multi-queue orchestration...")
+        
+        with PerformanceContext("queued_mode_session"):
+            try:
+                # Use the multi-queue processor for orchestrated task processing
+                processing_session = self.multi_queue_processor.process_queued_tasks(
+                    cancellation_check=lambda: not self.running
+                )
+                
+                # Convert session results to legacy format for compatibility
+                queued_results = {
+                    "step_results": {
+                        "session_id": processing_session.session_id,
+                        "processing_session": processing_session
+                    },
+                    "overall_success": processing_session.successful_tasks > 0,
+                    "successful_tickets": [],
+                    "failed_tickets": [],
+                    "summary": {}
+                }
+                
+                # Extract successful and failed ticket IDs from session results
+                for result in processing_session.processing_results:
+                    if result["status"] == "success":
+                        queued_results["successful_tickets"].append(result["task_id"])
+                    else:
+                        queued_results["failed_tickets"].append(result["task_id"])
+                
+                # Build summary
+                queued_results["summary"] = {
+                    "message": f"Multi-queue processing completed: {processing_session.successful_tasks} successful, {processing_session.failed_tasks} failed",
+                    "total_tickets": processing_session.total_tasks,
+                    "successful_tickets": processing_session.successful_tasks,
+                    "failed_tickets": processing_session.failed_tasks,
+                    "success_rate": (processing_session.successful_tasks / processing_session.total_tasks * 100) if processing_session.total_tasks > 0 else 0
+                }
+                
+                # Log component statistics using the enhanced multi-queue processor
+                self._log_enhanced_statistics()
+                
+                # Log comprehensive performance summary
+                log_performance_summary()
+                
+                return queued_results
+                
+            except Exception as e:
+                logger.error(f"❌ Multi-queue task processing failed with error: {e}")
+                return {
+                    "step_results": {},
+                    "overall_success": False,
+                    "successful_tickets": [],
+                    "failed_tickets": [],
+                    "summary": {
+                        "message": f"Multi-queue processing failed: {str(e)}",
+                        "total_tickets": 0,
+                        "successful_tickets": 0,
+                        "failed_tickets": 0,
+                        "error": str(e)
+                    }
+                }
+    
+    def _log_enhanced_statistics(self):
+        """Log enhanced statistics from all components using multi-queue processor."""
+        # Log multi-queue processing statistics
+        logger.info("🔄 Multi-Queue Processing Statistics:")
+        multi_queue_stats = self.multi_queue_processor.get_processing_statistics()
+        logger.info(f"   🚀 Total sessions: {multi_queue_stats['total_sessions']}")
+        logger.info(f"   📋 Total tasks processed: {multi_queue_stats['total_tasks_processed']}")
+        logger.info(f"   ✅ Successful tasks: {multi_queue_stats['successful_tasks']}")
+        logger.info(f"   ❌ Failed tasks: {multi_queue_stats['failed_tasks']}")
+        logger.info(f"   📊 Overall success rate: {multi_queue_stats['overall_success_rate']:.1f}%")
+        logger.info(f"   ⏱️ Average session duration: {multi_queue_stats['average_session_duration']:.2f}s")
+        logger.info(f"   🕒 Total processing time: {multi_queue_stats['total_processing_time']:.2f}s")
+        
+        # Log status transition statistics
+        logger.info("📊 Status Transition Statistics:")
+        transition_stats = self.status_manager.get_statistics()
+        logger.info(f"   🔄 Total transitions: {transition_stats['total_transitions']}")
+        logger.info(f"   ✅ Successful transitions: {transition_stats['successful_transitions']}")
+        logger.info(f"   ❌ Failed transitions: {transition_stats['failed_transitions']}")
+        logger.info(f"   🔄 Rollbacks attempted: {transition_stats['rollbacks_attempted']}")
+        logger.info(f"   ✅ Rollbacks successful: {transition_stats['rollbacks_successful']}")
+        logger.info(f"   📊 Transition success rate: {transition_stats['success_rate']:.1f}%")
+        if transition_stats['rollbacks_attempted'] > 0:
+            logger.info(f"   📊 Rollback success rate: {transition_stats['rollback_success_rate']:.1f}%")
+        
+        # Log Claude invocation statistics
+        logger.info("🤖 Claude Engine Invocation Statistics:")
+        claude_stats = self.claude_invoker.get_statistics()
+        logger.info(f"   🚀 Total invocations: {claude_stats['total_invocations']}")
+        logger.info(f"   ✅ Successful invocations: {claude_stats['successful_invocations']}")
+        logger.info(f"   ❌ Failed invocations: {claude_stats['failed_invocations']}")
+        logger.info(f"   ⏰ Timeout invocations: {claude_stats['timeout_invocations']}")
+        logger.info(f"   📊 Success rate: {claude_stats['success_rate']:.1f}%")
+        logger.info(f"   ⏱️ Average duration: {claude_stats['average_duration_seconds']:.2f}s")
+        if claude_stats['timeout_rate'] > 0:
+            logger.info(f"   ⏰ Timeout rate: {claude_stats['timeout_rate']:.1f}%")
+        
+        # Log task file copy statistics
+        logger.info("📋 Task File Copy Statistics:")
+        copy_stats = self.task_file_manager.get_statistics()
+        logger.info(f"   📄 Total copy operations: {copy_stats['total_operations']}")
+        logger.info(f"   ✅ Successful copies: {copy_stats['successful_operations']}")
+        logger.info(f"   ❌ Failed copies: {copy_stats['failed_operations']}")
+        logger.info(f"   ⏭️ Skipped copies: {copy_stats['skipped_operations']}")
+        logger.info(f"   📊 Copy success rate: {copy_stats['success_rate']:.1f}%")
+        logger.info(f"   📏 Total bytes copied: {copy_stats['total_bytes_copied']}")
+        logger.info(f"   💾 Backups created: {copy_stats['backups_created']}")
+        if copy_stats['rolled_back_operations'] > 0:
+            logger.info(f"   🔄 Rollbacks performed: {copy_stats['rolled_back_operations']}")
+    
     def run(self):
         """Run the application based on mode"""
         if self.mode == "refine":
@@ -403,6 +577,16 @@ class NotionDeveloper:
                 sys.exit(0)
             else:
                 logger.error("❌ Prepare mode completed with errors")
+                sys.exit(1)
+        elif self.mode == "queued":
+            results = self.run_queued_mode()
+            
+            # Exit with appropriate code
+            if results["overall_success"]:
+                logger.info("✅ Queued mode completed successfully")
+                sys.exit(0)
+            else:
+                logger.error("❌ Queued mode completed with errors")
                 sys.exit(1)
     
     def log_statistics(self):
@@ -423,26 +607,30 @@ class NotionDeveloper:
 def main():
     parser = argparse.ArgumentParser(
         description="Notion API integration application",
-        epilog="Examples:\n  uv run main.py --refine\n  uv run main.py --prepare",
+        epilog="Examples:\n  uv run main.py --refine\n  uv run main.py --prepare\n  uv run main.py --queued",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--refine", action="store_true", help="Run in refine mode (process 'To Refine' status tasks)")
     parser.add_argument("--prepare", action="store_true", help="Run in prepare mode (process 'Prepare Tasks' status)")
+    parser.add_argument("--queued", action="store_true", help="Run in queued mode (process 'Queued to run' status tasks)")
     
     args = parser.parse_args()
     
     # Determine mode
-    if args.refine and args.prepare:
-        logger.error("Cannot specify both --refine and --prepare modes")
-        logger.error("Usage: uv run main.py --refine OR uv run main.py --prepare")
+    mode_count = sum([args.refine, args.prepare, args.queued])
+    if mode_count > 1:
+        logger.error("Cannot specify multiple modes")
+        logger.error("Usage: uv run main.py --refine OR uv run main.py --prepare OR uv run main.py --queued")
         sys.exit(1)
     elif args.refine:
         mode = "refine"
     elif args.prepare:
         mode = "prepare"
+    elif args.queued:
+        mode = "queued"
     else:
-        logger.error("Must specify either --refine or --prepare mode")
-        logger.error("Usage: uv run main.py --refine OR uv run main.py --prepare")
+        logger.error("Must specify one of: --refine, --prepare, or --queued mode")
+        logger.error("Usage: uv run main.py --refine OR uv run main.py --prepare OR uv run main.py --queued")
         sys.exit(1)
     
     app = NotionDeveloper(mode=mode)

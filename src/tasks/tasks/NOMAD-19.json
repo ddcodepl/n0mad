@@ -129,13 +129,13 @@
           128,
           129
         ],
-        "status": "done",
+        "status": "pending",
         "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-08-04T03:18:39.436Z",
-      "updated": "2025-08-04T08:38:14.395Z",
+      "updated": "2025-08-04T08:21:15.606Z",
       "description": "Tasks for master context"
     }
   }
