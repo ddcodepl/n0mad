@@ -230,9 +230,59 @@ class FeedbackManager:
         else:
             return new_entry
     
+    def _chunk_text(self, text: str, max_chunk_size: int = 2000) -> List[str]:
+        """
+        Split text into chunks that fit within Notion's character limits.
+        
+        Args:
+            text: Text to chunk
+            max_chunk_size: Maximum characters per chunk (default 2000)
+            
+        Returns:
+            List of text chunks
+        """
+        if len(text) <= max_chunk_size:
+            return [text]
+        
+        chunks = []
+        current_pos = 0
+        
+        while current_pos < len(text):
+            # Calculate end position for this chunk
+            end_pos = current_pos + max_chunk_size
+            
+            if end_pos >= len(text):
+                # Last chunk - take remaining text
+                chunks.append(text[current_pos:])
+                break
+            
+            # Try to find a good breaking point (newline, space, etc.)
+            chunk_text = text[current_pos:end_pos]
+            
+            # Look for natural break points in order of preference
+            break_chars = ['\n\n', '\n', '. ', ', ', ' ']
+            best_break = -1
+            
+            for break_char in break_chars:
+                last_break = chunk_text.rfind(break_char)
+                if last_break > max_chunk_size * 0.7:  # Don't break too early
+                    best_break = last_break + len(break_char)
+                    break
+            
+            if best_break > 0:
+                # Use natural break point
+                chunks.append(text[current_pos:current_pos + best_break])
+                current_pos += best_break
+            else:
+                # No good break point found, force break at max size
+                chunks.append(text[current_pos:end_pos])
+                current_pos = end_pos
+        
+        return chunks
+
     def _update_feedback_property(self, page_id: str, feedback_content: str) -> bool:
         """
-        Update the Feedback property with new content.
+        Update the Feedback property with new content, handling text chunking for long content.
         
         Args:
             page_id: Notion page ID
@@ -244,17 +294,23 @@ class FeedbackManager:
         attempt = 0
         while attempt < self._max_retry_attempts:
             try:
+                # Split content into chunks if it exceeds Notion's limit
+                text_chunks = self._chunk_text(feedback_content, max_chunk_size=2000)
+                
+                # Create rich_text objects for each chunk
+                rich_text_objects = []
+                for chunk in text_chunks:
+                    rich_text_objects.append({
+                        "type": "text",
+                        "text": {
+                            "content": chunk
+                        }
+                    })
+                
                 # Prepare rich_text format for Notion API
                 properties = {
                     "Feedback": {
-                        "rich_text": [
-                            {
-                                "type": "text",
-                                "text": {
-                                    "content": feedback_content
-                                }
-                            }
-                        ]
+                        "rich_text": rich_text_objects
                     }
                 }
                 
