@@ -81,6 +81,39 @@ ABSOLUTE REQUIREMENT: Every completed task MUST result in actual file modificati
 Tasks without file changes will be considered FAILED and rolled back to pending status.
 
 If a task seems unclear, use `task-master show <id>` for details before implementing."""
+
+        # Task Master specific prompt template
+        self.taskmaster_prompt_template = """Execute Task Master AI task: {task_id}
+
+Task Context:
+- Task Master Task ID: {task_id}  
+- Page ID: {page_id}
+
+TASK MASTER INTEGRATION - DIRECT MCP TOOL USAGE:
+1. **REQUIRED: Use Task Master MCP tools directly** - You have access to Task Master MCP tools
+2. Start by getting task details: Use the MCP tool `mcp__task-master-ai__get_task` with id="{task_id}" and projectRoot="/Users/damian/Web/ddcode/nomad"
+3. Set task status to in-progress: Use `mcp__task-master-ai__set_task_status` with id="{task_id}", status="in-progress", projectRoot="/Users/damian/Web/ddcode/nomad"
+4. **MANDATORY: IMPLEMENT ACTUAL CODE** - Create/modify files, write functions, add classes, implement features based on task requirements
+5. **VERIFICATION REQUIRED**: Before marking any task complete, run `git status` to verify files were modified
+6. **IMPLEMENTATION REQUIREMENTS**:
+   - Create new .py files when required
+   - Modify existing files to add/update functionality
+   - Write actual function implementations, not just stubs  
+   - Add proper error handling and logging
+   - Include imports and dependencies
+7. **TESTING REQUIRED**: Test implementations to ensure they work correctly
+8. Update task progress: Use `mcp__task-master-ai__update_subtask` or `mcp__task-master-ai__update_task` to log implementation details
+9. **ONLY mark as done AFTER**:
+   - Writing actual code that implements the task requirements
+   - Verifying with `git status` that files were changed
+   - Testing the implementation works
+10. Complete task: Use `mcp__task-master-ai__set_task_status` with id="{task_id}", status="done", projectRoot="/Users/damian/Web/ddcode/nomad"
+
+ABSOLUTE REQUIREMENT: Every completed task MUST result in actual file modifications visible in `git status`.
+Tasks without file changes will be considered FAILED and rolled back to pending status.
+
+PROJECT ROOT: /Users/damian/Web/ddcode/nomad
+USE MCP TOOLS: You have direct access to Task Master MCP tools - use them instead of CLI commands."""
         
         logger.info(f"🤖 ClaudeEngineInvoker initialized with timeout: {timeout_minutes}m, retries: {max_retries}")
         logger.info(f"📁 Project root: {project_root}")
@@ -169,6 +202,98 @@ If a task seems unclear, use `task-master show <id>` for details before implemen
                 
             except Exception as e:
                 logger.error(f"❌ Critical error in Claude engine invocation: {e}")
+                invocation.error = str(e)
+                invocation.result = InvocationResult.FAILED
+                invocation.end_time = datetime.now()
+                if invocation.start_time and invocation.end_time:
+                    invocation.duration_seconds = (invocation.end_time - invocation.start_time).total_seconds()
+                self._add_to_history(invocation)
+                return invocation
+    
+    def invoke_claude_engine_with_taskmaster(self, task_id: str, page_id: str) -> ClaudeInvocation:
+        """
+        Invoke Claude Code CLI with Task Master specific prompt and MCP tool integration.
+        
+        Args:
+            task_id: Task Master task ID
+            page_id: Page ID for context (usually same as task_id for Task Master)
+            
+        Returns:
+            ClaudeInvocation object with execution results
+        """
+        invocation_id = f"tm_{task_id}_{int(time.time())}"
+        
+        invocation = ClaudeInvocation(
+            invocation_id=invocation_id,
+            ticket_id=task_id,
+            page_id=page_id,
+            start_time=datetime.now()
+        )
+        
+        # Generate Task Master specific prompt
+        customized_prompt = self.taskmaster_prompt_template.format(
+            task_id=task_id,
+            page_id=page_id
+        )
+        
+        # Audit logging - log invocation attempt
+        logger.info(f"🚀 Starting Task Master Claude engine invocation")
+        logger.info(f"   🎯 Task Master Task ID: {task_id}")
+        logger.info(f"   📄 Page ID: {page_id}")
+        logger.info(f"   🆔 Invocation ID: {invocation_id}")
+        logger.info(f"   ⏰ Timeout: {self.timeout_seconds}s")
+        logger.info(f"   📝 Using Task Master MCP prompt template")
+        
+        with self._invocation_lock:
+            try:
+                # Attempt invocation with retries
+                for attempt in range(self.max_retries + 1):
+                    if attempt > 0:
+                        logger.info(f"🔄 Task Master retry attempt {attempt}/{self.max_retries}")
+                        time.sleep(2 ** attempt)  # Exponential backoff
+                    
+                    try:
+                        result = self._execute_claude_command(invocation, customized_prompt)
+                        
+                        if result.result == InvocationResult.SUCCESS:
+                            logger.info(f"✅ Task Master Claude engine invocation successful on attempt {attempt + 1}")
+                            break
+                        elif result.result == InvocationResult.TIMEOUT:
+                            logger.warning(f"⏰ Task Master Claude engine invocation timed out on attempt {attempt + 1}")
+                            if attempt < self.max_retries:
+                                continue
+                        else:
+                            logger.error(f"❌ Task Master Claude engine invocation failed on attempt {attempt + 1}: {result.error}")
+                            if attempt < self.max_retries:
+                                continue
+                    
+                    except Exception as e:
+                        logger.error(f"❌ Exception during Task Master Claude invocation attempt {attempt + 1}: {e}")
+                        invocation.error = str(e)
+                        invocation.result = InvocationResult.FAILED
+                        if attempt < self.max_retries:
+                            continue
+                
+                # Finalize invocation
+                invocation.end_time = datetime.now()
+                if invocation.start_time and invocation.end_time:
+                    invocation.duration_seconds = (invocation.end_time - invocation.start_time).total_seconds()
+                
+                # Add to history
+                self._add_to_history(invocation)
+                
+                # Final audit logging
+                logger.info(f"🏁 Task Master Claude engine invocation completed")
+                logger.info(f"   🎯 Task Master Task ID: {task_id}")
+                logger.info(f"   📊 Result: {invocation.result}")
+                logger.info(f"   ⏱️ Duration: {invocation.duration_seconds:.2f}s")
+                if invocation.exit_code is not None:
+                    logger.info(f"   🚪 Exit code: {invocation.exit_code}")
+                
+                return invocation
+                
+            except Exception as e:
+                logger.error(f"❌ Critical error in Task Master Claude engine invocation: {e}")
                 invocation.error = str(e)
                 invocation.result = InvocationResult.FAILED
                 invocation.end_time = datetime.now()

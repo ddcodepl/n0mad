@@ -107,8 +107,14 @@ class NotionDeveloper:
                     self.feedback_manager,
                     self.claude_invoker,
                     self.task_file_manager,
-                    self.project_root
+                    project_root=self.project_root,
+                    taskmaster_callback=None  # Will be enhanced when MCP tools are available
                 )
+                
+                # Enable Task Master integration if running in Claude Code environment
+                # In a real Claude Code session, this would be automatically detected
+                logger.info("🎯 Enabling Task Master AI integration for queued processing")
+                self.multi_queue_processor.enable_real_taskmaster_integration(mcp_tools_available=True)
                 
                 # Initialize polling scheduler for continuous operation
                 circuit_breaker_config = CircuitBreakerConfig(
