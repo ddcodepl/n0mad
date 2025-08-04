@@ -16,7 +16,7 @@
         "id": 162,
         "title": "Design Model String Parser and Validation",
         "description": "Implement parsing logic for provider/model format with validation",
-        "details": "Create a utility function to parse model strings in format 'provider/model'. Split on '/' delimiter and validate both parts are non-empty strings. Implement validation patterns - provider should be alphanumeric, model should conform to expected naming conventions. Add default fallback to 'openai/o4-mini' when no model specified. Include error handling for malformed strings, empty inputs, and invalid characters.",
+        "details": "Create a utility function to parse model strings in format 'provider/model'. Split on '/' delimiter and validate both parts are non-empty strings. Implement validation patterns - provider should be alphanumeric, model should conform to expected naming conventions. Add default fallback to 'openai/gpt-4o-mini' when no model specified. Include error handling for malformed strings, empty inputs, and invalid characters.",
         "testStrategy": "Unit tests covering valid formats (openai/gpt-4, anthropic/claude-3), invalid formats (no slash, empty parts, special characters), edge cases (multiple slashes, whitespace), and default behavior when input is null/undefined.",
         "priority": "high",
         "dependencies": [

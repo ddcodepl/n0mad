@@ -16,7 +16,7 @@
         "id": 122,
         "title": "Implement Model String Parser",
         "description": "Create a utility function to parse model strings in the format 'provider/model' and extract provider and model components",
-        "details": "Implement parseModelString(modelStr) function that: (1) Splits input on '/' delimiter, (2) Validates format has exactly 2 parts, (3) Returns {provider, model} object, (4) Defaults to {provider: 'openai', model: 'o4-mini'} when input is empty/null, (5) Throws validation error for malformed strings, (6) Sanitizes inputs to prevent injection attacks. Follow existing code patterns and error handling conventions.",
+        "details": "Implement parseModelString(modelStr) function that: (1) Splits input on '/' delimiter, (2) Validates format has exactly 2 parts, (3) Returns {provider, model} object, (4) Defaults to {provider: 'openai', model: 'gpt-4o-mini'} when input is empty/null, (5) Throws validation error for malformed strings, (6) Sanitizes inputs to prevent injection attacks. Follow existing code patterns and error handling conventions.",
         "testStrategy": "Unit tests covering valid inputs ('openai/gpt-4', 'anthropic/claude-3'), invalid inputs (empty string, malformed format), edge cases (extra slashes, special characters), and default behavior.",
         "priority": "high",
         "dependencies": [

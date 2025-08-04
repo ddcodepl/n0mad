@@ -37,6 +37,7 @@ from performance_integration import (
 from logging_config import get_logger
 from config import config_manager
 from simple_queued_processor import SimpleQueuedProcessor
+from multi_status_processor import MultiStatusProcessor
 
 load_dotenv()
 
@@ -94,39 +95,11 @@ class NotionDeveloper:
                 self.file_ops = FileOperations(base_dir=os.path.join(self.project_root, "src", "tasks"))
                 self.cmd_executor = CommandExecutor(base_dir=self.project_root)
             elif mode == "queued":
-                # Initialize components needed for queued task processing
-                self.file_ops = FileOperations(base_dir=os.path.join(self.project_root, "src", "tasks"))
-                self.db_ops = DatabaseOperations(self.notion_client)
-                self.cmd_executor = CommandExecutor(base_dir=self.project_root)
-                self.status_manager = StatusTransitionManager(self.notion_client)
-                self.feedback_manager = FeedbackManager(self.notion_client)
-                self.claude_invoker = ClaudeEngineInvoker(self.project_root)
-                self.task_file_manager = TaskFileManager(self.project_root)
-                self.multi_queue_processor = MultiQueueProcessor(
-                    self.db_ops,
-                    self.status_manager, 
-                    self.feedback_manager,
-                    self.claude_invoker,
-                    self.task_file_manager,
-                    project_root=self.project_root,
-                    taskmaster_callback=None  # Will be enhanced when MCP tools are available
-                )
-                
-                # Enable Task Master integration if running in Claude Code environment
-                # In a real Claude Code session, this would be automatically detected
-                logger.info("🎯 Enabling Task Master AI integration for queued processing")
-                self.multi_queue_processor.enable_real_taskmaster_integration(mcp_tools_available=True)
-                
-                # Initialize polling scheduler for continuous operation
-                circuit_breaker_config = CircuitBreakerConfig(
-                    failure_threshold=5,
-                    recovery_timeout=60,
-                    success_threshold=2
-                )
-                self.polling_scheduler = PollingScheduler(
-                    task_processor_callback=self._process_queued_tasks_callback,
-                    circuit_breaker_config=circuit_breaker_config
-                )
+                # Initialize simple queued processor
+                self.simple_processor = SimpleQueuedProcessor(self.project_root)
+            elif mode == "multi":
+                # Initialize multi-status processor
+                self.multi_processor = MultiStatusProcessor(self.project_root)
             
             if not self.notion_client.test_connection():
                 raise Exception("Failed to connect to Notion database")
@@ -479,54 +452,38 @@ class NotionDeveloper:
     
     def _process_queued_tasks_callback(self) -> Dict[str, Any]:
         """
-        Callback method for polling scheduler to process queued tasks.
-        This ensures task outputs are properly saved to src directory.
+        Callback method for processing queued tasks using simple processor.
         
         Returns:
             Dictionary with processing results
         """
         try:
-            # Use the multi-queue processor for orchestrated task processing
-            processing_session = self.multi_queue_processor.process_queued_tasks(
-                cancellation_check=lambda: not self.running
-            )
+            # Use the simple queued processor
+            success = self.simple_processor.process_queued_tasks()
             
-            # Build results in expected format for polling scheduler
-            result = {
-                "step_results": {
-                    "session_id": processing_session.session_id,
-                    "processing_session": processing_session
-                },
-                "overall_success": processing_session.successful_tasks > 0,
+            return {
+                "step_results": {"simple_processor": success},
+                "overall_success": success,
                 "successful_tickets": [],
                 "failed_tickets": [],
                 "summary": {
-                    "message": f"Multi-queue processing completed: {processing_session.successful_tasks} successful, {processing_session.failed_tasks} failed",
-                    "total_tickets": processing_session.total_tasks,
-                    "successful_tickets": processing_session.successful_tasks,
-                    "failed_tickets": processing_session.failed_tasks,
-                    "success_rate": (processing_session.successful_tasks / processing_session.total_tasks * 100) if processing_session.total_tasks > 0 else 0
+                    "message": f"Simple queued processing {'completed successfully' if success else 'failed'}",
+                    "total_tickets": 1 if success else 0,
+                    "successful_tickets": 1 if success else 0,
+                    "failed_tickets": 0 if success else 1,
+                    "success_rate": 100.0 if success else 0.0
                 }
             }
             
-            # Extract ticket IDs for tracking
-            for processing_result in processing_session.processing_results:
-                if processing_result["status"] == "success":
-                    result["successful_tickets"].append(processing_result["task_id"])
-                else:
-                    result["failed_tickets"].append(processing_result["task_id"])
-            
-            return result
-            
         except Exception as e:
-            logger.error(f"❌ Queued task processing callback failed: {e}")
+            logger.error(f"❌ Simple queued task processing failed: {e}")
             return {
                 "step_results": {},
                 "overall_success": False,
                 "successful_tickets": [],
                 "failed_tickets": [],
                 "summary": {
-                    "message": f"Multi-queue processing failed: {str(e)}",
+                    "message": f"Simple queued processing failed: {str(e)}",
                     "total_tickets": 0,
                     "successful_tickets": 0,
                     "failed_tickets": 0,
@@ -535,70 +492,32 @@ class NotionDeveloper:
             }
     
     def run_queued_mode(self):
-        """Run the queued mode with continuous polling scheduler"""
-        logger.info("🚀 Starting enhanced queued mode with continuous polling scheduler...")
+        """Run the queued mode using simple processor"""
+        logger.info("🚀 Starting simple queued mode...")
         
         with PerformanceContext("queued_mode_session"):
             try:
-                # Check if continuous polling is enabled
-                if config_manager.get_enable_continuous_polling():
-                    logger.info("🕒 Continuous polling enabled - starting polling scheduler...")
-                    
-                    # Start the polling scheduler
-                    if self.polling_scheduler.start():
-                        logger.info("✅ Polling scheduler started successfully")
-                        
-                        # Keep main thread alive while polling scheduler runs
-                        try:
-                            while self.running and self.polling_scheduler.is_running():
-                                time.sleep(1.0)
-                        except KeyboardInterrupt:
-                            logger.info("⏹️ Keyboard interrupt received")
-                        
-                        # Stop the polling scheduler
-                        logger.info("⏹️ Stopping polling scheduler...")
-                        self.polling_scheduler.stop()
-                        
-                        # Get final metrics
-                        metrics = self.polling_scheduler.get_metrics()
-                        logger.info("📊 Final Polling Scheduler Metrics:")
-                        logger.info(f"   🔄 Total polls: {metrics['total_polls']}")
-                        logger.info(f"   ✅ Successful polls: {metrics['successful_polls']}")
-                        logger.info(f"   ❌ Failed polls: {metrics['failed_polls']}")
-                        logger.info(f"   📋 Tasks processed: {metrics['tasks_processed']}")
-                        logger.info(f"   📊 Success rate: {metrics['success_rate']:.1f}%")
-                        logger.info(f"   ⏱️ Average poll duration: {metrics['average_poll_duration']:.2f}s")
-                        
-                        return {
-                            "step_results": {"polling_metrics": metrics},
-                            "overall_success": metrics['successful_polls'] > 0,
-                            "successful_tickets": [],
-                            "failed_tickets": [],
-                            "summary": {
-                                "message": f"Continuous polling completed: {metrics['successful_polls']} successful polls, {metrics['tasks_processed']} tasks processed",
-                                "total_polls": metrics['total_polls'],
-                                "successful_polls": metrics['successful_polls'],
-                                "failed_polls": metrics['failed_polls'],
-                                "tasks_processed": metrics['tasks_processed'],
-                                "success_rate": metrics['success_rate']
-                            }
-                        }
-                    else:
-                        logger.error("❌ Failed to start polling scheduler")
-                        return self._get_failed_result("Failed to start polling scheduler")
-                        
-                else:
-                    logger.info("🔄 Continuous polling disabled - running single processing cycle...")
-                    # Single processing cycle when continuous polling is disabled
-                    return self._process_queued_tasks_callback()
+                # Process queued tasks using simple processor
+                success = self.simple_processor.process_queued_tasks()
+                
+                return {
+                    "step_results": {"simple_processor": success},
+                    "overall_success": success,
+                    "successful_tickets": [],
+                    "failed_tickets": [],
+                    "summary": {
+                        "message": f"Simple queued processing {'completed successfully' if success else 'failed'}",
+                        "total_tickets": 1 if success else 0,
+                        "successful_tickets": 1 if success else 0,
+                        "failed_tickets": 0 if success else 1,
+                        "success_rate": 100.0 if success else 0.0
+                    }
+                }
                     
             except Exception as e:
                 logger.error(f"❌ Queued mode failed with error: {e}")
                 return self._get_failed_result(str(e))
             finally:
-                # Log component statistics
-                self._log_enhanced_statistics()
-                
                 # Log comprehensive performance summary
                 log_performance_summary()
     
@@ -618,56 +537,127 @@ class NotionDeveloper:
             }
         }
     
-    def _log_enhanced_statistics(self):
-        """Log enhanced statistics from all components using multi-queue processor."""
-        # Log multi-queue processing statistics
-        logger.info("🔄 Multi-Queue Processing Statistics:")
-        multi_queue_stats = self.multi_queue_processor.get_processing_statistics()
-        logger.info(f"   🚀 Total sessions: {multi_queue_stats['total_sessions']}")
-        logger.info(f"   📋 Total tasks processed: {multi_queue_stats['total_tasks_processed']}")
-        logger.info(f"   ✅ Successful tasks: {multi_queue_stats['successful_tasks']}")
-        logger.info(f"   ❌ Failed tasks: {multi_queue_stats['failed_tasks']}")
-        logger.info(f"   📊 Overall success rate: {multi_queue_stats['overall_success_rate']:.1f}%")
-        logger.info(f"   ⏱️ Average session duration: {multi_queue_stats['average_session_duration']:.2f}s")
-        logger.info(f"   🕒 Total processing time: {multi_queue_stats['total_processing_time']:.2f}s")
-        
-        # Log status transition statistics
-        logger.info("📊 Status Transition Statistics:")
-        transition_stats = self.status_manager.get_statistics()
-        logger.info(f"   🔄 Total transitions: {transition_stats['total_transitions']}")
-        logger.info(f"   ✅ Successful transitions: {transition_stats['successful_transitions']}")
-        logger.info(f"   ❌ Failed transitions: {transition_stats['failed_transitions']}")
-        logger.info(f"   🔄 Rollbacks attempted: {transition_stats['rollbacks_attempted']}")
-        logger.info(f"   ✅ Rollbacks successful: {transition_stats['rollbacks_successful']}")
-        logger.info(f"   📊 Transition success rate: {transition_stats['success_rate']:.1f}%")
-        if transition_stats['rollbacks_attempted'] > 0:
-            logger.info(f"   📊 Rollback success rate: {transition_stats['rollback_success_rate']:.1f}%")
-        
-        # Log Claude invocation statistics
-        logger.info("🤖 Claude Engine Invocation Statistics:")
-        claude_stats = self.claude_invoker.get_statistics()
-        logger.info(f"   🚀 Total invocations: {claude_stats['total_invocations']}")
-        logger.info(f"   ✅ Successful invocations: {claude_stats['successful_invocations']}")
-        logger.info(f"   ❌ Failed invocations: {claude_stats['failed_invocations']}")
-        logger.info(f"   ⏰ Timeout invocations: {claude_stats['timeout_invocations']}")
-        logger.info(f"   📊 Success rate: {claude_stats['success_rate']:.1f}%")
-        logger.info(f"   ⏱️ Average duration: {claude_stats['average_duration_seconds']:.2f}s")
-        if claude_stats['timeout_rate'] > 0:
-            logger.info(f"   ⏰ Timeout rate: {claude_stats['timeout_rate']:.1f}%")
-        
-        # Log task file copy statistics
-        logger.info("📋 Task File Copy Statistics:")
-        copy_stats = self.task_file_manager.get_statistics()
-        logger.info(f"   📄 Total copy operations: {copy_stats['total_operations']}")
-        logger.info(f"   ✅ Successful copies: {copy_stats['successful_operations']}")
-        logger.info(f"   ❌ Failed copies: {copy_stats['failed_operations']}")
-        logger.info(f"   ⏭️ Skipped copies: {copy_stats['skipped_operations']}")
-        logger.info(f"   📊 Copy success rate: {copy_stats['success_rate']:.1f}%")
-        logger.info(f"   📏 Total bytes copied: {copy_stats['total_bytes_copied']}")
-        logger.info(f"   💾 Backups created: {copy_stats['backups_created']}")
-        if copy_stats['rolled_back_operations'] > 0:
-            logger.info(f"   🔄 Rollbacks performed: {copy_stats['rolled_back_operations']}")
     
+    def run_continuous_polling_mode(self):
+        """Run continuous polling mode when no arguments provided - now uses multi-status processing"""
+        signal.signal(signal.SIGINT, self.signal_handler)
+        signal.signal(signal.SIGTERM, self.signal_handler)
+        
+        logger.info("🔄 Starting continuous polling mode - checking for tasks across all statuses every minute...")
+        
+        # Initialize multi-status processor for continuous mode
+        multi_processor = MultiStatusProcessor(self.project_root)
+        
+        with PerformanceContext("continuous_polling_session"):
+            poll_count = 0
+            successful_polls = 0
+            
+            while self.running:
+                try:
+                    poll_count += 1
+                    self.stats["last_poll"] = datetime.now()
+                    logger.info(f"📡 Poll #{poll_count} - Checking for tasks across all statuses...")
+                    
+                    # Get processing recommendations first
+                    recommendations = multi_processor.get_processing_recommendations()
+                    
+                    # Log current distribution
+                    if poll_count % 5 == 1:  # Every 5th poll
+                        logger.info("📊 Current task distribution:")
+                        for status, count in recommendations["distribution"].items():
+                            if count > 0:
+                                logger.info(f"   {status}: {count}")
+                    
+                    # Process priority statuses if they have tasks
+                    priority_statuses = [item["status"] for item in recommendations["priority_statuses"]]
+                    
+                    if priority_statuses:
+                        # Convert string status names to TaskStatus enums
+                        from task_status import TaskStatus
+                        include_statuses = {TaskStatus(status) for status in priority_statuses}
+                        
+                        # Process priority statuses
+                        result = multi_processor.process_all_statuses(include_statuses=include_statuses)
+                        
+                        if result["overall_success"] and result["summary"]["total_processed"] > 0:
+                            successful_polls += 1
+                            logger.info(f"✅ Poll #{poll_count} completed successfully - processed {result['summary']['total_processed']} tasks")
+                        else:
+                            logger.info(f"ℹ️  Poll #{poll_count} completed - no tasks processed")
+                    else:
+                        logger.info(f"ℹ️  Poll #{poll_count} - no priority tasks found")
+                    
+                    # Log statistics every 10 polls
+                    if poll_count % 10 == 0:
+                        success_rate = (successful_polls / poll_count) * 100
+                        logger.info(f"📊 Polling Statistics: {successful_polls}/{poll_count} successful ({success_rate:.1f}%)")
+                    
+                    # Wait 1 minute before next poll (check shutdown every 5 seconds)
+                    for _ in range(12):  # 12 * 5 = 60 seconds
+                        if not self.running:
+                            break
+                        time.sleep(5)
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error during poll #{poll_count}: {e}")
+                    # Wait before retrying
+                    time.sleep(30)
+        
+        logger.info(f"🏁 Continuous polling stopped after {poll_count} polls ({successful_polls} successful)")
+        self.log_final_statistics()
+
+    def run_multi_mode(self):
+        """Run multi-status processing mode"""
+        logger.info("🚀 Starting multi-status processing mode...")
+        
+        with PerformanceContext("multi_status_session"):
+            try:
+                # Process all statuses with recommendations
+                recommendations = self.multi_processor.get_processing_recommendations()
+                
+                # Log current distribution
+                logger.info("📊 Current task distribution:")
+                for status, count in recommendations["distribution"].items():
+                    if count > 0:
+                        logger.info(f"   {status}: {count}")
+                
+                # Process priority statuses
+                priority_statuses = [item["status"] for item in recommendations["priority_statuses"]]
+                
+                if priority_statuses:
+                    from task_status import TaskStatus
+                    include_statuses = {TaskStatus(status) for status in priority_statuses}
+                    
+                    result = self.multi_processor.process_all_statuses(include_statuses=include_statuses)
+                    
+                    return result
+                else:
+                    logger.info("ℹ️  No priority tasks found to process")
+                    return {
+                        "overall_success": True,
+                        "status_results": {},
+                        "summary": {
+                            "total_processed": 0,
+                            "successful": 0,
+                            "failed": 0,
+                            "success_rate": 0.0
+                        }
+                    }
+                    
+            except Exception as e:
+                logger.error(f"❌ Multi-status mode failed: {e}")
+                return {
+                    "overall_success": False,
+                    "status_results": {},
+                    "summary": {
+                        "total_processed": 0,
+                        "successful": 0,
+                        "failed": 1,
+                        "success_rate": 0.0,
+                        "error": str(e)
+                    }
+                }
+
     def run(self):
         """Run the application based on mode"""
         if self.mode == "refine":
@@ -692,6 +682,16 @@ class NotionDeveloper:
             else:
                 logger.error("❌ Queued mode completed with errors")
                 sys.exit(1)
+        elif self.mode == "multi":
+            results = self.run_multi_mode()
+            
+            # Exit with appropriate code
+            if results["overall_success"]:
+                logger.info("✅ Multi-status mode completed successfully")
+                sys.exit(0)
+            else:
+                logger.error("❌ Multi-status mode completed with errors")
+                sys.exit(1)
     
     def log_statistics(self):
         runtime = datetime.now() - self.stats["start_time"]
@@ -711,41 +711,46 @@ class NotionDeveloper:
 def main():
     parser = argparse.ArgumentParser(
         description="Notion API integration application",
-        epilog="Examples:\n  uv run main.py --refine\n  uv run main.py --prepare\n  uv run main.py --queued",
+        epilog="Examples:\n  uv run main.py          # Continuous polling mode (multi-status)\n  uv run main.py --refine\n  uv run main.py --prepare\n  uv run main.py --queued\n  uv run main.py --multi",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--refine", action="store_true", help="Run in refine mode (process 'To Refine' status tasks)")
     parser.add_argument("--prepare", action="store_true", help="Run in prepare mode (process 'Prepare Tasks' status)")
-    parser.add_argument("--queued", action="store_true", help="Run in queued mode (process 'Queued to run' status tasks)")
-    parser.add_argument("--simple-queued", action="store_true", help="Run in simple queued mode (new simplified logic)")
+    parser.add_argument("--queued", action="store_true", help="Run in queued mode (process 'Queued to run' status tasks only)")
+    parser.add_argument("--multi", action="store_true", help="Run in multi-status mode (process multiple status types)")
     
     args = parser.parse_args()
     
     # Determine mode
-    mode_count = sum([args.refine, args.prepare, args.queued, args.simple_queued])
+    mode_count = sum([args.refine, args.prepare, args.queued, args.multi])
     if mode_count > 1:
         logger.error("Cannot specify multiple modes")
-        logger.error("Usage: uv run main.py --refine OR uv run main.py --prepare OR uv run main.py --queued OR uv run main.py --simple-queued")
+        logger.error("Usage: uv run main.py [--refine|--prepare|--queued|--multi]")
         sys.exit(1)
     elif args.refine:
         mode = "refine"
+        app = NotionDeveloper(mode=mode)
+        app.run()
     elif args.prepare:
         mode = "prepare"
+        app = NotionDeveloper(mode=mode)
+        app.run()
     elif args.queued:
-        mode = "queued"
-    elif args.simple_queued:
-        # Handle simple queued mode directly
+        # Handle queued mode directly with simple processor
         project_root = os.path.dirname(os.path.dirname(__file__))
         processor = SimpleQueuedProcessor(project_root)
         success = processor.process_queued_tasks()
         sys.exit(0 if success else 1)
+    elif args.multi:
+        mode = "multi"
+        app = NotionDeveloper(mode=mode)
+        app.run()
     else:
-        logger.error("Must specify one of: --refine, --prepare, --queued, or --simple-queued mode")
-        logger.error("Usage: uv run main.py --refine OR uv run main.py --prepare OR uv run main.py --queued OR uv run main.py --simple-queued")
-        sys.exit(1)
-    
-    app = NotionDeveloper(mode=mode)
-    app.run()
+        # No arguments provided - run continuous polling mode with multi-status processing
+        logger.info("No mode specified - starting continuous polling mode")
+        project_root = os.path.dirname(os.path.dirname(__file__))
+        app = NotionDeveloper(mode="queued")  # Initialize with basic mode
+        app.run_continuous_polling_mode()  # But use multi-status continuous polling
 
 
 if __name__ == "__main__":

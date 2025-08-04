@@ -3,7 +3,7 @@ Configuration constants for the Notion Developer application.
 """
 
 # Default AI model for processing content
-DEFAULT_MODEL = "openai/o4-mini"
+DEFAULT_MODEL = "openai/gpt-4o-mini"
 
 # Continuous polling configuration
 DEFAULT_ENABLE_CONTINUOUS_POLLING = False

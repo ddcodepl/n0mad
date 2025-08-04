@@ -43,11 +43,22 @@ class StatusTransitionManager:
         self._transition_history: List[StatusTransition] = []
         self._max_history = 1000  # Keep last 1000 transitions for debugging
         
-        # Valid status transitions mapping
+        # Valid status transitions mapping - complete workflow
         self._valid_transitions = {
+            # Early workflow stages
+            TaskStatus.IDEAS.value: [TaskStatus.TO_REFINE.value],
+            TaskStatus.TO_REFINE.value: [TaskStatus.REFINED.value],
+            TaskStatus.REFINED.value: [TaskStatus.PREPARE_TASKS.value],
+            TaskStatus.PREPARE_TASKS.value: [TaskStatus.PREPARING_TASKS.value],
+            TaskStatus.PREPARING_TASKS.value: [TaskStatus.READY_TO_RUN.value, TaskStatus.FAILED.value],
+            
+            # Queue workflow stages
+            TaskStatus.READY_TO_RUN.value: [TaskStatus.QUEUED_TO_RUN.value],
             TaskStatus.QUEUED_TO_RUN.value: [TaskStatus.IN_PROGRESS.value],
             TaskStatus.IN_PROGRESS.value: [TaskStatus.DONE.value, TaskStatus.FAILED.value],
-            TaskStatus.FAILED.value: [TaskStatus.QUEUED_TO_RUN.value, TaskStatus.IN_PROGRESS.value],
+            
+            # Error and final states
+            TaskStatus.FAILED.value: [TaskStatus.QUEUED_TO_RUN.value, TaskStatus.IN_PROGRESS.value, TaskStatus.TO_REFINE.value],
             TaskStatus.DONE.value: []  # Final state
         }
         

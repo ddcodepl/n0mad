@@ -12,7 +12,7 @@ Models are provided in property Model as status in format provider/model eg. ope
 
 we should split the text at / and check provider if provider is openai, we should ask directly openai, if model is different we should ask openrouter to process it in the same way
 
-default model should be openai/o4-mini
+default model should be openai/gpt-4o-mini
 
 open router api key is stored in .env as OPENROUTER_API_KEY
 openai key is stored as OPENAI_API_KEY

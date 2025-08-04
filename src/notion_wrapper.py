@@ -580,13 +580,13 @@ class NotionClientWrapper:
             logger.error(f"❌ Failed to upload file to page property: {e}")
             raise
     
-    def finalize_ticket_status(self, successful_ticket_data: List[Dict[str, Any]], final_status: str = "Ready to Run") -> Dict[str, Any]:
+    def finalize_ticket_status(self, successful_ticket_data: List[Dict[str, Any]], final_status: str = "Ready to run") -> Dict[str, Any]:
         """
-        Update processed tickets to final status ('Ready to Run') after successful completion.
+        Update processed tickets to final status ('Ready to run') after successful completion.
         
         Args:
             successful_ticket_data: List of successfully processed ticket data with page_ids
-            final_status: Final status to set (default: 'Ready to Run')
+            final_status: Final status to set (default: 'Ready to run')
         
         Returns:
             Dictionary with finalization results and rollback information

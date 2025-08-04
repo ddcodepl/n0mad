@@ -23,7 +23,7 @@ Extend the prompt refinement feature to support routing requests to either OpenA
 - Parse the model string in the format `provider/model` by splitting on `/`.
 - If `provider` equals `openai`, invoke the existing OpenAI request flow using the extracted `model`.
 - If `provider` is not `openai`, route the request to OpenRouter, passing the `model` segment as target model.
-- Default to `openai/o4-mini` when no model is specified.
+- Default to `openai/gpt-4o-mini` when no model is specified.
 - Validation: Ensure `provider` and `model` strings are non-empty and conform to expected patterns.
 - Error handling: Surface clear errors when keys are missing, provider unknown, or external API responds with an error.
 
