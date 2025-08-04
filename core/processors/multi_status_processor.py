@@ -279,7 +279,13 @@ class MultiStatusProcessor:
                     "stats": {"processed": len(ticket_ids), "successful": 0, "failed": len(ticket_ids)}
                 }
             
-            # Update status to 'Preparing Tasks'
+            # IMPORTANT: Process only one ticket at a time to avoid tasks.json conflicts
+            if len(valid_ticket_ids) > 1:
+                logger.info(f"📝 Found {len(valid_ticket_ids)} valid tickets. Processing only the first one to avoid tasks.json conflicts.")
+                logger.info(f"🔄 Remaining tickets will be processed in subsequent runs: {valid_ticket_ids[1:]}")
+                valid_ticket_ids = [valid_ticket_ids[0]]  # Process only the first ticket
+            
+            # Update status to 'Preparing Tasks' (only for selected ticket)
             page_ids = [page["id"] for page in prepare_tasks_pages 
                        if self.notion_client.extract_ticket_ids([page])[0] in valid_ticket_ids]
             
@@ -292,15 +298,53 @@ class MultiStatusProcessor:
             # Copy tasks.json files
             taskmaster_tasks_path = os.path.join(self.project_root, ".taskmaster", "tasks", "tasks.json")
             tasks_dest_dir = os.path.join(self.project_root, "src", "tasks", "tasks")
-            self.file_ops.copy_tasks_file(successful_ticket_ids, source_path=taskmaster_tasks_path, dest_dir=tasks_dest_dir)
+            copy_results = self.file_ops.copy_tasks_file(successful_ticket_ids, source_path=taskmaster_tasks_path, dest_dir=tasks_dest_dir)
+            
+            # Upload JSON files to Notion pages
+            upload_data = []
+            for page in prepare_tasks_pages:
+                page_ticket_ids = self.notion_client.extract_ticket_ids([page])
+                if page_ticket_ids and page_ticket_ids[0] in successful_ticket_ids:
+                    # Get the full ticket ID format for the file path
+                    ticket_id = page_ticket_ids[0]
+                    full_ticket_id = self.file_ops._get_full_ticket_id(ticket_id)
+                    upload_data.append({
+                        "ticket_id": ticket_id,
+                        "page_id": page["id"],
+                        "tasks_file_path": os.path.join(self.project_root, "src", "tasks", "tasks", f"{full_ticket_id}.json")
+                    })
+            
+            upload_results = self.notion_client.upload_tasks_files_to_pages(upload_data)
+            
+            # Finalize status to 'Ready to Run' for successfully uploaded tasks
+            successful_upload_page_ids = [item["page_id"] for item in upload_results["successful_uploads"]]
+            
+            finalized_count = 0
+            if successful_upload_page_ids:
+                finalize_results = self.notion_client.update_tickets_status_batch(successful_upload_page_ids, "Ready to run")
+                finalized_count = finalize_results.get("success_count", 0)
+                logger.info(f"✅ Finalized {finalized_count} tasks to 'Ready to run' status")
+            
+            # Handle failed tasks - mark them as Failed for valid status transition
+            failed_ticket_ids = [item["ticket_id"] for item in command_results["failed_executions"]]
+            if failed_ticket_ids:
+                failed_page_ids = []
+                for page in prepare_tasks_pages:
+                    page_ticket_ids = self.notion_client.extract_ticket_ids([page])
+                    if page_ticket_ids and page_ticket_ids[0] in failed_ticket_ids:
+                        failed_page_ids.append(page["id"])
+                
+                if failed_page_ids:
+                    self.notion_client.update_tickets_status_batch(failed_page_ids, "Failed")
+                    logger.info(f"❌ Marked {len(failed_page_ids)} failed tasks as 'Failed'")
             
             return {
-                "success": len(successful_ticket_ids) > 0,
-                "message": f"Prepared {len(successful_ticket_ids)} tasks",
+                "success": finalized_count > 0,
+                "message": f"Prepared and finalized {finalized_count} tasks to 'Ready to run'",
                 "stats": {
                     "processed": len(valid_ticket_ids),
-                    "successful": len(successful_ticket_ids),
-                    "failed": len(valid_ticket_ids) - len(successful_ticket_ids)
+                    "successful": finalized_count,
+                    "failed": len(valid_ticket_ids) - finalized_count
                 }
             }
             

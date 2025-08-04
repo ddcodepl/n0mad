@@ -14,7 +14,7 @@ class FileOperations:
     def __init__(self, base_dir: str = None):
         # Load TASKS_DIR from environment variable, with fallback to default
         if base_dir is None:
-            base_dir = os.getenv("TASKS_DIR", "./src/tasks")
+            base_dir = os.getenv("TASKS_DIR", "./tasks")
         
         self.base_dir = base_dir
         self.pre_refined_dir = os.path.join(base_dir, "pre-refined")

@@ -2,138 +2,129 @@
   "master": {
     "tasks": [
       {
-        "id": 181,
-        "title": "Codebase Analysis and Documentation",
-        "description": "Analyze existing codebase to identify relevant modules, files, and services for global installation",
-        "details": "Conduct comprehensive codebase reconnaissance to identify: 1) Current package management configuration files (setup.py, package.json, pyproject.toml, etc.), 2) Existing script execution mechanisms and entry points, 3) Current environment variable handling patterns, 4) Integration points that will be impacted by global installation, 5) Dependencies and version constraints. Document all findings including file locations, current architecture patterns, and potential conflicts with existing global installations.",
-        "testStrategy": "Create documentation audit checklist and verify all identified components are accurately documented. Test current installation methods to establish baseline behavior.",
+        "id": 231,
+        "title": "Analyze existing codebase and package structure",
+        "description": "Conduct comprehensive codebase reconnaissance to identify current packaging configuration, installation mechanisms, and environment variable handling patterns",
+        "details": "Investigate setup.py, package.json, pyproject.toml, or equivalent configuration files. Map current directory structure and identify entry points. Document existing environment variable usage patterns. Analyze current script execution flow and identify integration points for global installation. Create architectural diagram showing current package structure and proposed changes.",
+        "testStrategy": "Document findings in structured format. Verify all configuration files are identified. Test current installation methods to establish baseline behavior.",
         "priority": "high",
         "dependencies": [],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 182,
-        "title": "Environment Variable Configuration System",
-        "description": "Implement robust environment variable management for TASKMASTER_DIR, TASKS_DIR, NOTION_TOKEN, NOTION_BOARD_DB, OPENAI_API_KEY, and OPENROUTER_API_KEY",
-        "details": "Create centralized environment variable configuration system with: 1) Validation rules for each environment variable (presence, format, type checking), 2) Default value handling and fallback mechanisms, 3) Secure loading and parsing of environment variables, 4) Configuration validation on startup, 5) Error handling for missing or invalid environment variables, 6) Support for .env file loading and system environment variables. Implement configuration class/module that can be imported throughout the application.",
-        "testStrategy": "Unit tests for each environment variable validation rule, integration tests for configuration loading scenarios, and error handling tests for missing/invalid variables.",
+        "id": 232,
+        "title": "Design global installation architecture",
+        "description": "Define technical specifications for global package installation with environment variable configuration support",
+        "details": "Design package entry point structure using setuptools console_scripts or equivalent. Define command-line interface for global execution. Specify environment variable loading hierarchy (system, user, project-specific). Design configuration file structure and locations. Plan backwards compatibility with existing local execution methods.",
+        "testStrategy": "Create design document with UML diagrams. Validate design against common packaging standards. Review with existing codebase constraints.",
         "priority": "high",
         "dependencies": [
-          181
+          231
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 183,
-        "title": "Package Configuration for Global Installation",
-        "description": "Configure package metadata and entry points to support global installation via pip or npm",
-        "details": "Update package configuration files to enable global installation: 1) Configure setup.py/pyproject.toml or package.json with proper entry_points/bin configuration, 2) Define console_scripts entry points for main execution command, 3) Set up proper package metadata including version, dependencies, and description, 4) Configure installation scripts and post-install hooks if needed, 5) Ensure proper shebang lines in executable scripts, 6) Set up package build configuration for distribution.",
-        "testStrategy": "Test local installation in virtual environment, verify entry point creation, test global installation via pip install -e . or npm link, and validate command availability in PATH.",
+        "id": 233,
+        "title": "Implement environment variable management system",
+        "description": "Create robust system for handling TASKMASTER_DIR, TASKS_DIR, NOTION_TOKEN, NOTION_BOARD_DB, OPENAI_API_KEY, and OPENROUTER_API_KEY environment variables",
+        "details": "Implement environment variable loader with validation rules. Support multiple sources: .env files, system environment, command-line arguments. Add input validation for required vs optional variables. Implement secure handling for API keys with masking in logs. Create fallback mechanisms for missing variables with user-friendly error messages.",
+        "testStrategy": "Unit tests for environment loading with various configurations. Test validation rules for each variable type. Verify secure handling of sensitive data. Test fallback behaviors.",
         "priority": "high",
         "dependencies": [
-          181,
-          182
+          232
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 184,
-        "title": "Global Command Interface Implementation",
-        "description": "Create main executable script that can be run from any directory with proper environment configuration",
-        "details": "Implement main command-line interface: 1) Create main executable script with proper argument parsing using argparse or click, 2) Integrate environment variable configuration loading on startup, 3) Implement working directory independence - script should work from any location, 4) Add help text and usage documentation, 5) Implement proper exit codes and error messaging, 6) Add version information display, 7) Ensure graceful handling of missing configuration or permissions.",
-        "testStrategy": "Test command execution from various directories, verify environment variable loading, test help and version commands, and validate error handling for missing dependencies.",
+        "id": 234,
+        "title": "Create package configuration for global installation",
+        "description": "Configure setup.py, pyproject.toml, or equivalent files to support global package installation with proper entry points",
+        "details": "Update package configuration with console_scripts entry points. Define package metadata including version, dependencies, and Python version requirements. Configure installation scripts and post-install hooks if needed. Set up proper package discovery and module imports for global execution context.",
+        "testStrategy": "Test pip install in clean virtual environment. Verify global command availability after installation. Test package discovery and import resolution from any directory.",
         "priority": "high",
         "dependencies": [
-          182,
-          183
+          233
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 185,
-        "title": "Security Implementation for API Key Management",
-        "description": "Implement secure handling of sensitive environment variables including API keys and tokens",
-        "details": "Implement security measures for sensitive data: 1) Mask/redact API keys in logs and error messages, 2) Implement secure environment variable validation without exposing values, 3) Add warnings for API keys stored in plain text files, 4) Implement proper error handling that doesn't leak sensitive information, 5) Add optional encryption for stored configuration if applicable, 6) Validate API key formats without logging actual values, 7) Implement secure cleanup of memory containing sensitive data.",
-        "testStrategy": "Security audit of log outputs to ensure no API keys are exposed, test error scenarios to verify sensitive data is not leaked, and validate that API key validation works without exposing actual keys.",
+        "id": 235,
+        "title": "Implement global command-line interface",
+        "description": "Create main CLI entry point that can be executed from any directory with proper environment configuration",
+        "details": "Implement main() function as package entry point. Add command-line argument parsing for configuration overrides. Implement working directory detection and path resolution. Add help system and version information. Ensure proper error handling and user feedback for missing configurations.",
+        "testStrategy": "Integration tests executing command from various directories. Test command-line argument parsing and help system. Verify error handling for edge cases.",
+        "priority": "medium",
+        "dependencies": [
+          234
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 236,
+        "title": "Update existing modules for global execution context",
+        "description": "Modify existing modules to work correctly when executed from any directory rather than just the project root",
+        "details": "Update file path resolution to use absolute paths or environment-based paths. Modify import statements to work with installed package structure. Update any hardcoded relative paths to use configuration-based paths. Ensure database connections and API integrations work from any execution context.",
+        "testStrategy": "Test all existing functionality from different working directories. Verify file operations use correct paths. Test API integrations maintain functionality.",
+        "priority": "medium",
+        "dependencies": [
+          235
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 237,
+        "title": "Implement configuration file support",
+        "description": "Add support for configuration files to store environment variables and settings persistently",
+        "details": "Implement configuration file reading (JSON, YAML, or INI format). Support user-level and system-level configuration locations. Add configuration file creation and update utilities. Implement configuration validation and migration for version updates. Add configuration precedence handling.",
+        "testStrategy": "Test configuration file creation, reading, and validation. Test precedence rules with multiple configuration sources. Verify migration processes for configuration updates.",
+        "priority": "medium",
+        "dependencies": [
+          236
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 238,
+        "title": "Add security measures for sensitive data handling",
+        "description": "Implement secure storage and handling of API keys and sensitive environment variables",
+        "details": "Implement secure credential storage using system keyring or encrypted configuration. Add API key validation and format checking. Implement secure logging that masks sensitive data. Add permission checks for configuration files. Implement secure defaults and warnings for insecure configurations.",
+        "testStrategy": "Security audit of credential handling. Test API key masking in logs and error messages. Verify file permission settings. Test credential validation functions.",
         "priority": "high",
         "dependencies": [
-          182
+          237
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 186,
-        "title": "Installation Script and Documentation",
-        "description": "Create installation scripts and comprehensive documentation for global installation process",
-        "details": "Create installation resources: 1) Develop install.sh or install.bat scripts for automated installation, 2) Create comprehensive README with installation instructions for different platforms, 3) Document environment variable setup requirements and examples, 4) Create troubleshooting guide for common installation issues, 5) Add uninstallation instructions, 6) Create example .env file template, 7) Document platform-specific considerations and requirements.",
-        "testStrategy": "Test installation scripts on different platforms, verify documentation accuracy by following instructions on clean systems, and validate that all documented features work as described.",
+        "id": 239,
+        "title": "Create installation and setup documentation",
+        "description": "Develop comprehensive documentation for global installation process and configuration management",
+        "details": "Create step-by-step installation guide for different operating systems. Document environment variable configuration options and requirements. Create troubleshooting guide for common installation issues. Add examples for different use cases and deployment scenarios. Create migration guide from local to global installation.",
+        "testStrategy": "Follow documentation on clean systems to verify accuracy. Test installation steps on different operating systems. Validate troubleshooting solutions.",
         "priority": "medium",
         "dependencies": [
-          183,
-          184
+          238
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 187,
-        "title": "Path Resolution and Directory Management",
-        "description": "Implement robust path resolution to handle TASKMASTER_DIR and TASKS_DIR from any working directory",
-        "details": "Implement directory management system: 1) Create path resolution utilities that work with relative and absolute paths, 2) Implement TASKMASTER_DIR and TASKS_DIR resolution from environment variables, 3) Add fallback directory creation if paths don't exist, 4) Implement working directory independence using proper path joining, 5) Add validation for directory permissions and accessibility, 6) Handle path expansion for user home directory (~) and environment variables, 7) Create utilities for safe file operations within configured directories.",
-        "testStrategy": "Test path resolution from various working directories, verify directory creation and permission handling, test with different path formats (relative, absolute, with tildes), and validate cross-platform compatibility.",
+        "id": 240,
+        "title": "Implement comprehensive testing and validation suite",
+        "description": "Create thorough test suite covering global installation, configuration management, and execution from any directory",
+        "details": "Implement integration tests for complete installation process. Create tests for execution from various working directories. Add performance tests for configuration loading and environment setup. Implement regression tests for existing functionality. Create end-to-end tests for typical user workflows with global installation.",
+        "testStrategy": "Automated test suite with CI/CD integration. Performance benchmarks for global vs local execution. Regression test suite covering all existing features. User acceptance testing scenarios.",
         "priority": "medium",
         "dependencies": [
-          182,
-          184
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": 188,
-        "title": "Integration Testing and Validation",
-        "description": "Implement comprehensive integration tests for global installation and cross-directory execution",
-        "details": "Create integration test suite: 1) Test complete installation workflow from package to global command, 2) Validate script execution from multiple directories with different environment configurations, 3) Test environment variable loading and validation in various scenarios, 4) Create tests for error conditions and edge cases, 5) Implement performance benchmarks for startup time and resource usage, 6) Test uninstallation and cleanup processes, 7) Validate cross-platform compatibility if applicable.",
-        "testStrategy": "Automated integration test suite covering installation, execution, and uninstallation workflows. Performance tests to ensure startup time meets requirements. Cross-platform testing if multi-platform support is required.",
-        "priority": "medium",
-        "dependencies": [
-          184,
-          185,
-          187
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": 189,
-        "title": "Performance Optimization and Caching",
-        "description": "Implement performance optimizations including configuration caching and startup time improvements",
-        "details": "Optimize performance for global execution: 1) Implement configuration caching to avoid re-reading environment variables on every execution, 2) Optimize import statements and lazy loading for faster startup, 3) Add configuration validation caching to skip repeated checks, 4) Implement resource utilization monitoring and optimization, 5) Add startup time benchmarking and optimization targets, 6) Create efficient path resolution caching, 7) Optimize file system operations for directory and file access.",
-        "testStrategy": "Performance benchmarks for startup time, memory usage monitoring, cache effectiveness testing, and load testing with varying environment configurations.",
-        "priority": "medium",
-        "dependencies": [
-          187,
-          188
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": 190,
-        "title": "Production Deployment and Distribution",
-        "description": "Prepare package for production distribution with proper versioning and release management",
-        "details": "Prepare for production release: 1) Set up proper semantic versioning and release tagging, 2) Configure package distribution via PyPI or npm registry, 3) Create automated build and release pipeline, 4) Implement version checking and update notifications, 5) Set up package signing and verification if required, 6) Create release notes and changelog management, 7) Configure automated testing in CI/CD pipeline, 8) Set up monitoring and analytics for package usage if applicable.",
-        "testStrategy": "Test package distribution and installation from registry, verify version management and update mechanisms, validate automated build pipeline, and test release process end-to-end.",
-        "priority": "low",
-        "dependencies": [
-          186,
-          188,
-          189
+          239
         ],
         "status": "pending",
         "subtasks": []
@@ -141,7 +132,7 @@
     ],
     "metadata": {
       "created": "2025-08-04T03:18:39.436Z",
-      "updated": "2025-08-04T23:15:19.056Z",
+      "updated": "2025-08-04T23:34:09.348Z",
       "description": "Tasks for master context"
     }
   }

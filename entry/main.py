@@ -342,7 +342,13 @@ class NotionDeveloper:
                 }
                 return workflow_results
             
-            # Create mapping of valid tickets to their page data
+            # IMPORTANT: Process only one ticket at a time to avoid tasks.json conflicts
+            if len(valid_ticket_ids) > 1:
+                logger.info(f"📝 Found {len(valid_ticket_ids)} valid tickets. Processing only the first one to avoid tasks.json conflicts.")
+                logger.info(f"🔄 Remaining tickets will be processed in subsequent runs: {valid_ticket_ids[1:]}")
+                valid_ticket_ids = [valid_ticket_ids[0]]  # Process only the first ticket
+            
+            # Create mapping of valid tickets to their page data (only for the selected ticket)
             valid_page_data = []
             for page in prepare_tasks_pages:
                 page_ticket_ids = self.notion_client.extract_ticket_ids([page])
@@ -352,6 +358,8 @@ class NotionDeveloper:
                         "ticket_id": page_ticket_ids[0],
                         "page_data": page
                     })
+            
+            logger.info(f"🎯 Processing single ticket: {valid_ticket_ids[0]} (page_id: {valid_page_data[0]['page_id'] if valid_page_data else 'unknown'})")
             
             # Step 4: Update status to 'Preparing Tasks'
             logger.info("🔄 Step 4: Updating ticket status to 'Preparing Tasks'...")
@@ -364,15 +372,56 @@ class NotionDeveloper:
             command_results = self.cmd_executor.execute_taskmaster_command(valid_ticket_ids)
             workflow_results["step_results"]["execute_commands"] = command_results
             
-            # Step 6: Copy tasks.json files
+            # Step 6: Copy tasks.json files (only for successfully parsed tickets)
             logger.info("📋 Step 6: Copying generated tasks.json files...")
             successful_ticket_ids = [item["ticket_id"] for item in command_results["successful_executions"]]
+            
+            # Validate that we actually have successful parsing results
+            if not successful_ticket_ids:
+                logger.warning("⚠️ No tickets were successfully parsed - cannot proceed with copying files")
+                
+                # Update failed tickets to "Failed" status only if parsing actually failed
+                failed_ticket_ids = [item["ticket_id"] for item in command_results["failed_executions"]]
+                if failed_ticket_ids:
+                    logger.info(f"❌ Marking {len(failed_ticket_ids)} failed tickets as 'Failed' status...")
+                    failed_page_ids = []
+                    for ticket_data in valid_page_data:
+                        if ticket_data["ticket_id"] in failed_ticket_ids:
+                            failed_page_ids.append(ticket_data["page_id"])
+                    
+                    if failed_page_ids:
+                        revert_results = self.notion_client.update_tickets_status_batch(failed_page_ids, "Failed")
+                        logger.info(f"❌ Marked {revert_results.get('success_count', 0)} tickets as 'Failed'")
+                
+                workflow_results["summary"] = {
+                    "message": "Task parsing failed - no valid tasks generated",
+                    "total_tickets": len(prepare_tasks_pages),
+                    "successful_tickets": 0,
+                    "failed_tickets": len(prepare_tasks_pages),
+                    "error": "Task parsing validation failed"
+                }
+                return workflow_results
+            
             # Construct path to .taskmaster/tasks/tasks.json relative to FileOperations base_dir
             taskmaster_tasks_path = os.path.join(self.project_root, ".taskmaster", "tasks", "tasks.json")
             # Construct absolute path to tasks subdirectory  
             tasks_dest_dir = os.path.join(self.project_root, "data", "tasks")
             copy_results = self.file_ops.copy_tasks_file(successful_ticket_ids, source_path=taskmaster_tasks_path, dest_dir=tasks_dest_dir)
             workflow_results["step_results"]["copy_files"] = copy_results
+            
+            # Handle partially failed tickets - mark failed ones as "Failed" (valid transition)
+            failed_ticket_ids = [item["ticket_id"] for item in command_results["failed_executions"]]
+            if failed_ticket_ids:
+                logger.warning(f"⚠️ {len(failed_ticket_ids)} tickets failed parsing - marking as 'Failed'...")
+                failed_page_ids = []
+                for ticket_data in valid_page_data:
+                    if ticket_data["ticket_id"] in failed_ticket_ids:
+                        failed_page_ids.append(ticket_data["page_id"])
+                
+                if failed_page_ids:
+                    revert_results = self.notion_client.update_tickets_status_batch(failed_page_ids, "Failed")
+                    logger.info(f"❌ Marked {revert_results.get('success_count', 0)} failed tickets as 'Failed'")
+                    workflow_results["step_results"]["mark_failed"] = revert_results
             
             # Step 7: Upload JSON files to Notion pages
             logger.info("📤 Step 7: Uploading JSON files to Notion page Tasks property...")

@@ -46,6 +46,11 @@ class CommandExecutor:
         logger.info(f"📁 Tasks base directory: {tasks_base_dir}")
         logger.info(f"📁 Looking for files in: {refined_dir}")
         
+        # Safety check: Warn if multiple tickets provided (should only be 1 to avoid conflicts)
+        if len(ticket_ids) > 1:
+            logger.warning(f"⚠️ Multiple tickets provided ({len(ticket_ids)}). This may cause tasks.json conflicts!")
+            logger.warning("⚠️ Consider processing one ticket at a time to avoid overwrites.")
+        
         results = {
             "successful_executions": [],
             "failed_executions": [],
@@ -173,6 +178,10 @@ class CommandExecutor:
                     stderr=result.stderr
                 )
             
+            # Additional validation: Check if tasks.json was actually generated with valid content
+            if not self._validate_taskmaster_output():
+                raise RuntimeError("task-master parse-prd completed but failed to generate valid tasks.json file")
+            
             return {
                 "command": command_str,
                 "exit_code": result.returncode,
@@ -236,4 +245,59 @@ class CommandExecutor:
             
         except Exception as e:
             logger.error(f"❌ Error testing task-master availability: {e}")
+            return False
+    
+    def _validate_taskmaster_output(self) -> bool:
+        """
+        Validate that task-master parse-prd generated a valid tasks.json file.
+        
+        Returns:
+            True if tasks.json exists and contains valid task data, False otherwise
+        """
+        try:
+            import json
+            
+            # Check if tasks.json file exists in .taskmaster/tasks/
+            tasks_file_path = os.path.join(self.base_dir, ".taskmaster", "tasks", "tasks.json")
+            
+            if not os.path.exists(tasks_file_path):
+                logger.error(f"❌ tasks.json file not found at {tasks_file_path}")
+                return False
+            
+            # Check if file has content and is valid JSON
+            with open(tasks_file_path, 'r', encoding='utf-8') as f:
+                try:
+                    tasks_data = json.load(f)
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ tasks.json contains invalid JSON: {e}")
+                    return False
+            
+            # Basic validation: should be a dict with some expected structure
+            if not isinstance(tasks_data, dict):
+                logger.error("❌ tasks.json should contain a JSON object")
+                return False
+            
+            # Check if it has the correct taskmaster structure
+            # The actual structure has tag names as keys (like "master") containing tasks and metadata
+            has_valid_structure = False
+            for key, value in tasks_data.items():
+                if isinstance(value, dict) and ("tasks" in value or "metadata" in value):
+                    has_valid_structure = True
+                    break
+            
+            if not has_valid_structure:
+                logger.error("❌ tasks.json missing expected taskmaster structure (should have tag objects with tasks/metadata)")
+                return False
+            
+            # Check file size is reasonable (not empty or too small)
+            file_stat = os.stat(tasks_file_path)
+            if file_stat.st_size < 50:  # Very minimal JSON would be larger than 50 bytes
+                logger.error(f"❌ tasks.json file too small ({file_stat.st_size} bytes), likely incomplete")
+                return False
+            
+            logger.info(f"✅ tasks.json validation passed: {file_stat.st_size} bytes, valid structure")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error validating tasks.json: {e}")
             return False
