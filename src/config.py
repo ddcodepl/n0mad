@@ -5,6 +5,11 @@ Configuration constants for the Notion Developer application.
 # Default AI model for processing content
 DEFAULT_MODEL = "openai/o4-mini"
 
+# Continuous polling configuration
+DEFAULT_ENABLE_CONTINUOUS_POLLING = False
+DEFAULT_POLLING_INTERVAL_MINUTES = 1
+MIN_POLLING_INTERVAL_MINUTES = 1
+
 # System prompt for refining and structuring content
 REFINEMENT_PROMPT = """You are a Senior Software Architect with 15+ years of experience in enterprise software development, system design, and agile methodologies.
 
@@ -99,3 +104,114 @@ Brief 1-2 sentence summary of what this feature accomplishes and its business va
 
 **CRITICAL:** Return ONLY the formatted markdown ticket using the exact structure above. Each ticket MUST begin with Codebase Recon as the first task, remain technology-agnostic by default, and integrate strictly with the existing codebase.
 """
+
+import os
+from typing import Optional, Dict, Any
+
+
+class ConfigurationManager:
+    """Configuration management class with validation and environment variable support."""
+    
+    def __init__(self):
+        """Initialize configuration with default values and environment variable overrides."""
+        self._config: Dict[str, Any] = {}
+        self._load_defaults()
+        self._load_from_environment()
+    
+    def _load_defaults(self) -> None:
+        """Load default configuration values."""
+        self._config = {
+            'model': DEFAULT_MODEL,
+            'enable_continuous_polling': DEFAULT_ENABLE_CONTINUOUS_POLLING,
+            'polling_interval_minutes': DEFAULT_POLLING_INTERVAL_MINUTES
+        }
+    
+    def _load_from_environment(self) -> None:
+        """Load configuration from environment variables."""
+        # Model configuration
+        if 'AI_MODEL' in os.environ:
+            self._config['model'] = os.environ['AI_MODEL']
+        
+        # Continuous polling configuration
+        if 'ENABLE_CONTINUOUS_POLLING' in os.environ:
+            self._config['enable_continuous_polling'] = os.environ['ENABLE_CONTINUOUS_POLLING'].lower() in ('true', '1', 'yes', 'on')
+        
+        if 'POLLING_INTERVAL_MINUTES' in os.environ:
+            try:
+                interval = int(os.environ['POLLING_INTERVAL_MINUTES'])
+                self.set_polling_interval_minutes(interval)
+            except ValueError:
+                raise ValueError(f"Invalid POLLING_INTERVAL_MINUTES value: {os.environ['POLLING_INTERVAL_MINUTES']}. Must be an integer >= {MIN_POLLING_INTERVAL_MINUTES}")
+    
+    def get_model(self) -> str:
+        """Get the AI model configuration."""
+        return self._config['model']
+    
+    def set_model(self, model: str) -> None:
+        """Set the AI model configuration."""
+        if not isinstance(model, str) or not model.strip():
+            raise ValueError("Model must be a non-empty string")
+        self._config['model'] = model.strip()
+    
+    def get_enable_continuous_polling(self) -> bool:
+        """Get the continuous polling enable flag."""
+        return self._config['enable_continuous_polling']
+    
+    def set_enable_continuous_polling(self, enabled: bool) -> None:
+        """Set the continuous polling enable flag."""
+        if not isinstance(enabled, bool):
+            raise ValueError("enable_continuous_polling must be a boolean")
+        self._config['enable_continuous_polling'] = enabled
+    
+    def get_polling_interval_minutes(self) -> int:
+        """Get the polling interval in minutes."""
+        return self._config['polling_interval_minutes']
+    
+    def set_polling_interval_minutes(self, interval: int) -> None:
+        """Set the polling interval in minutes with validation."""
+        if not isinstance(interval, int):
+            raise ValueError("polling_interval_minutes must be an integer")
+        if interval < MIN_POLLING_INTERVAL_MINUTES:
+            raise ValueError(f"polling_interval_minutes must be >= {MIN_POLLING_INTERVAL_MINUTES} minute(s)")
+        self._config['polling_interval_minutes'] = interval
+    
+    def get_all_config(self) -> Dict[str, Any]:
+        """Get all configuration values as a dictionary."""
+        return self._config.copy()
+    
+    def update_config(self, config_dict: Dict[str, Any]) -> None:
+        """Update configuration with a dictionary of values."""
+        for key, value in config_dict.items():
+            if key == 'model':
+                self.set_model(value)
+            elif key == 'enable_continuous_polling':
+                self.set_enable_continuous_polling(value)
+            elif key == 'polling_interval_minutes':
+                self.set_polling_interval_minutes(value)
+            else:
+                raise ValueError(f"Unknown configuration key: {key}")
+    
+    def validate_config(self) -> bool:
+        """Validate all configuration values."""
+        try:
+            # Validate model
+            if not isinstance(self._config['model'], str) or not self._config['model'].strip():
+                return False
+            
+            # Validate continuous polling flag
+            if not isinstance(self._config['enable_continuous_polling'], bool):
+                return False
+            
+            # Validate polling interval
+            if not isinstance(self._config['polling_interval_minutes'], int):
+                return False
+            if self._config['polling_interval_minutes'] < MIN_POLLING_INTERVAL_MINUTES:
+                return False
+            
+            return True
+        except Exception:
+            return False
+
+
+# Global configuration instance
+config_manager = ConfigurationManager()
