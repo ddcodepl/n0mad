@@ -104,7 +104,8 @@ class NotionDeveloper:
                     self.status_manager, 
                     self.feedback_manager,
                     self.claude_invoker,
-                    self.task_file_manager
+                    self.task_file_manager,
+                    self.project_root
                 )
             
             if not self.notion_client.test_connection():

@@ -1,0 +1,140 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 131,
+        "title": "Perform Codebase Reconnaissance for Task Processing Architecture",
+        "description": "Analyze existing codebase to identify current task scheduler, polling mechanisms, configuration files, task repository interfaces, and processing pipeline modules",
+        "details": "Conduct thorough analysis of the codebase to map out: 1) Current task scheduling/polling components and their locations, 2) Configuration management system and file formats, 3) TaskRepository or data access layer interfaces and method signatures, 4) TaskProcessor or business logic execution components, 5) Task status enumeration and data models, 6) Existing background job infrastructure, 7) Current test coverage for polling/scheduling components. Document all findings including file paths, class names, method signatures, and integration points.",
+        "testStrategy": "Create comprehensive documentation of discovered components with code references. Verify understanding by successfully running existing task processing functionality. Write integration tests that demonstrate current workflow before modifications.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 132,
+        "title": "Design Configuration Extension for Continuous Polling",
+        "description": "Define and implement new configuration parameters for enabling continuous polling with configurable intervals",
+        "details": "Extend the existing configuration management module to include: 1) `enableContinuousPolling` boolean flag (default: false), 2) `pollingIntervalMinutes` integer parameter (default: 1, minimum: 1), 3) Validation rules ensuring interval >= 1 minute, 4) Configuration schema updates and migration if needed, 5) Environment variable or config file integration following existing patterns, 6) Runtime configuration reload capability if supported by current architecture.",
+        "testStrategy": "Unit tests for configuration validation including edge cases (negative intervals, zero values). Integration tests verifying configuration loading and default values. Test configuration hot-reload if applicable.",
+        "priority": "high",
+        "dependencies": [
+          131
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 133,
+        "title": "Implement Task Status Query Interface",
+        "description": "Create or extend repository methods to efficiently query tasks by status with proper filtering and batching",
+        "details": "Implement efficient querying capabilities: 1) Extend TaskRepository with `getTasksByStatus(status: string, limit?: number)` method, 2) Optimize database query with appropriate indexing on status column, 3) Implement pagination/batching for high-volume scenarios, 4) Add error handling and connection resilience, 5) Ensure query respects existing authorization boundaries, 6) Add logging for query performance monitoring.",
+        "testStrategy": "Unit tests for repository methods with various status filters. Performance tests measuring query execution time under different data volumes. Integration tests verifying proper data retrieval and model validation.",
+        "priority": "high",
+        "dependencies": [
+          131
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 134,
+        "title": "Implement Task Locking Mechanism for Concurrency Safety",
+        "description": "Create atomic task status updates to prevent race conditions when multiple processes attempt to process the same task",
+        "details": "Implement safe concurrency handling: 1) Create `markTaskInProgress(taskId: string, workerId?: string)` method with atomic compare-and-swap semantics, 2) Implement task locking using database transactions or optimistic locking, 3) Add timeout mechanism for stuck tasks (e.g., tasks in In-Progress for > 30 minutes), 4) Handle lock contention gracefully with appropriate backoff, 5) Add worker identification for debugging and monitoring, 6) Implement cleanup mechanism for orphaned locks.",
+        "testStrategy": "Concurrency tests simulating multiple workers attempting to process same tasks. Unit tests for atomic status updates. Integration tests verifying lock cleanup and timeout mechanisms. Load tests under high contention scenarios.",
+        "priority": "high",
+        "dependencies": [
+          133
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 135,
+        "title": "Create Configurable Polling Service Component",
+        "description": "Implement the core polling service that checks for queued tasks at configurable intervals",
+        "details": "Develop the polling service: 1) Create PollingService class with start/stop lifecycle methods, 2) Implement recurring timer based on pollingIntervalMinutes configuration, 3) Query TaskRepository for Queued tasks on each interval, 4) Apply task locking before processing to ensure idempotency, 5) Batch process multiple tasks if available, 6) Implement graceful shutdown handling, 7) Add comprehensive error handling to prevent polling loop interruption, 8) Include performance metrics collection (tasks processed, query time, errors).",
+        "testStrategy": "Unit tests for polling logic including timer management and error scenarios. Integration tests with mock TaskRepository. End-to-end tests verifying full polling cycle. Performance tests measuring CPU and memory usage during polling.",
+        "priority": "high",
+        "dependencies": [
+          132,
+          134
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 136,
+        "title": "Integrate Polling Service with Task Processing Pipeline",
+        "description": "Connect the polling service to existing TaskProcessor components ensuring seamless task execution",
+        "details": "Establish integration with existing processing pipeline: 1) Identify and interface with current TaskProcessor component, 2) Ensure proper task handoff maintaining existing input/output contracts, 3) Preserve existing error handling and retry mechanisms, 4) Add logging for processing outcomes (success/failure per task), 5) Implement proper exception isolation to prevent single task failures from affecting others, 6) Maintain existing task state transitions and notifications, 7) Add monitoring hooks for processed task metrics.",
+        "testStrategy": "Integration tests verifying tasks flow from polling to processing. Mock TaskProcessor tests to verify proper interface usage. End-to-end tests with real task processing scenarios. Regression tests ensuring existing functionality remains unchanged.",
+        "priority": "medium",
+        "dependencies": [
+          135
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 137,
+        "title": "Implement Comprehensive Logging and Monitoring",
+        "description": "Add detailed logging, metrics collection, and monitoring capabilities for the polling system",
+        "details": "Implement observability features: 1) Structured logging for polling events (start/stop cycles, tasks found, processing outcomes), 2) Performance metrics (query execution time, processing duration, success/failure rates), 3) Resource utilization monitoring (CPU, memory usage during polling), 4) Error tracking and alerting for critical failures, 5) Configurable log levels for debugging vs production, 6) Dashboard-ready metrics export in existing monitoring format, 7) Health check endpoint for polling service status.",
+        "testStrategy": "Unit tests for logging output verification. Integration tests for metrics collection accuracy. Load tests measuring monitoring overhead. Functional tests for health check endpoints and alerting mechanisms.",
+        "priority": "medium",
+        "dependencies": [
+          136
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 138,
+        "title": "Create Service Lifecycle Integration",
+        "description": "Integrate polling service with application startup/shutdown lifecycle and existing scheduler infrastructure",
+        "details": "Integrate with application lifecycle: 1) Hook polling service into application startup sequence, 2) Check enableContinuousPolling configuration on startup, 3) Implement graceful shutdown handling in application termination, 4) Integrate with existing scheduler infrastructure if present, 5) Add service health checks and readiness probes, 6) Implement configuration hot-reload capability, 7) Add administrative controls for runtime enable/disable, 8) Ensure proper cleanup of resources and active polling on shutdown.",
+        "testStrategy": "Integration tests for startup/shutdown sequences. Configuration change tests verifying hot-reload functionality. Service health check validation. Resource cleanup verification during shutdown scenarios.",
+        "priority": "medium",
+        "dependencies": [
+          137
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 139,
+        "title": "Implement Performance Optimization and Resource Management",
+        "description": "Optimize polling performance and implement resource usage controls to meet specified thresholds",
+        "details": "Optimize system performance: 1) Implement query result caching with appropriate TTL, 2) Add connection pooling for database queries, 3) Implement backpressure mechanism when task queue is large, 4) Add configurable batch size limits for processing, 5) Implement adaptive polling intervals based on queue depth, 6) Add resource usage monitoring ensuring <5% CPU and <100MB RAM targets, 7) Implement circuit breaker pattern for external dependencies, 8) Add performance tuning parameters for different deployment scenarios.",
+        "testStrategy": "Performance benchmarks measuring CPU and memory usage under various loads. Load tests with different batch sizes and polling intervals. Resource usage monitoring over extended periods. Stress tests to validate circuit breaker functionality.",
+        "priority": "medium",
+        "dependencies": [
+          138
+        ],
+        "status": "in-progress",
+        "subtasks": []
+      },
+      {
+        "id": 140,
+        "title": "Create Comprehensive Test Suite and Documentation",
+        "description": "Develop complete test coverage including unit, integration, and performance tests with full documentation",
+        "details": "Complete testing and documentation: 1) Unit tests achieving >90% code coverage for all new components, 2) Integration tests covering full polling-to-processing workflows, 3) Performance tests validating resource usage thresholds, 4) Regression tests ensuring existing functionality preservation, 5) Load tests simulating production scenarios, 6) Configuration documentation with examples and best practices, 7) Troubleshooting guide for common issues, 8) Operational runbook for monitoring and maintenance, 9) Performance benchmarking documentation with baseline measurements before/after.",
+        "testStrategy": "Test coverage verification using automated tools. Manual verification of all documented procedures. Performance baseline comparison tests. User acceptance testing with configuration scenarios. Documentation review and validation by stakeholders.",
+        "priority": "medium",
+        "dependencies": [
+          139
+        ],
+        "status": "done",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-08-04T03:18:39.436Z",
+      "updated": "2025-08-04T11:04:12.685Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

@@ -5,6 +5,8 @@ Handles task prioritization, resource management, error recovery, and progress t
 """
 import threading
 import time
+import subprocess
+import os
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
@@ -71,6 +73,7 @@ class MultiQueueProcessor:
                  feedback_manager, 
                  claude_invoker, 
                  task_file_manager,
+                 project_root: str = None,
                  max_retry_attempts: int = 3,
                  task_timeout_minutes: int = 30,
                  inter_task_delay_seconds: int = 2):
@@ -79,6 +82,7 @@ class MultiQueueProcessor:
         self.feedback_manager = feedback_manager
         self.claude_invoker = claude_invoker
         self.task_file_manager = task_file_manager
+        self.project_root = project_root
         
         self.max_retry_attempts = max_retry_attempts
         self.task_timeout_seconds = task_timeout_minutes * 60
@@ -540,7 +544,36 @@ class MultiQueueProcessor:
                     error=copy_operation.error
                 )
             
-            # Step 4: Final status transition to 'Done'
+            # Step 4: Verify actual code changes were made
+            logger.info(f"🔍 Verifying code changes for task {task_item.task_id}")
+            code_verification = self._verify_code_changes(task_item)
+            
+            if not code_verification["has_changes"]:
+                error_msg = f"Task completed but no code changes detected: {code_verification['message']}"
+                logger.warning(f"⚠️ {error_msg}")
+                
+                self.feedback_manager.add_feedback(
+                    task_item.page_id, ProcessingStage.ERROR_HANDLING,
+                    "No code changes detected after Claude invocation",
+                    error=error_msg
+                )
+                
+                # Attempt rollback to 'Queued to run' since no actual work was done
+                rollback_result = self.status_manager.rollback_transition(transition_to_progress)
+                if rollback_result.rollback_result == "rollback_success":
+                    logger.info(f"✅ Rolled back task {task_item.task_id} to 'Queued to run' due to no code changes")
+                
+                return {
+                    "task_id": task_item.task_id,
+                    "page_id": task_item.page_id,
+                    "title": task_item.title,
+                    "status": ProcessingResult.FAILED,
+                    "error": error_msg,
+                    "timestamp": datetime.now().isoformat()
+                }
+            
+            # Step 5: Final status transition to 'Done' only after verifying changes
+            logger.info(f"✅ Code changes verified for task {task_item.task_id}: {code_verification['message']}")
             transition_to_done = self.status_manager.transition_status(
                 task_item.page_id, "In progress", "Done"
             )
@@ -732,3 +765,89 @@ class MultiQueueProcessor:
             
             logger.info(f"📊 Multi-Queue Processing Statistics: {stats}")
             return stats
+    
+    def _verify_code_changes(self, task_item: QueuedTaskItem) -> Dict[str, Any]:
+        """
+        Verify that actual code changes were made during task processing.
+        Checks git status for modified/new files.
+        
+        Args:
+            task_item: Task that was processed
+            
+        Returns:
+            Dictionary with verification results
+        """
+        try:
+            # Check if running in the correct project directory
+            project_dir = getattr(self, 'project_root', None)
+            if not project_dir:
+                # Try to get from claude_invoker
+                project_dir = getattr(self.claude_invoker, 'project_root', None)
+            
+            if not project_dir or not os.path.exists(project_dir):
+                return {
+                    "has_changes": False,
+                    "message": "Could not determine project directory for git verification",
+                    "files_changed": []
+                }
+            
+            # Run git status to check for changes
+            result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                return {
+                    "has_changes": False,
+                    "message": f"Git status failed: {result.stderr}",
+                    "files_changed": []
+                }
+            
+            # Parse git status output
+            status_lines = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
+            modified_files = []
+            
+            for line in status_lines:
+                if len(line) >= 3:
+                    status_code = line[:2]
+                    file_path = line[3:]
+                    
+                    # Filter out backup files and focus on actual code changes
+                    if not any(excluded in file_path for excluded in ['.bak', 'backup', '.log', '.pyc', '__pycache__']):
+                        # Consider various git status codes as "real changes"
+                        # Status codes: M=modified, A=added, D=deleted, R=renamed, C=copied, U=unmerged
+                        status_first = status_code[0] if len(status_code) > 0 else ''
+                        status_second = status_code[1] if len(status_code) > 1 else ''
+                        
+                        if status_first in ['M', 'A', 'D', 'R', 'C', 'U'] or status_second in ['M', 'A', 'D', 'R', 'C']:
+                            modified_files.append(file_path)
+            
+            if modified_files:
+                return {
+                    "has_changes": True,
+                    "message": f"Found {len(modified_files)} modified files: {', '.join(modified_files[:5])}{'...' if len(modified_files) > 5 else ''}",
+                    "files_changed": modified_files
+                }
+            else:
+                return {
+                    "has_changes": False,
+                    "message": "No code file changes detected in git status",
+                    "files_changed": []
+                }
+                
+        except subprocess.TimeoutExpired:
+            return {
+                "has_changes": False,
+                "message": "Git status command timed out",
+                "files_changed": []
+            }
+        except Exception as e:
+            return {
+                "has_changes": False,
+                "message": f"Error checking git status: {str(e)}",
+                "files_changed": []
+            }

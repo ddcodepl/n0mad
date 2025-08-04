@@ -58,14 +58,29 @@ Task Context:
 - Ticket ID: {ticket_id}
 - Notion Page ID: {page_id}
 
-Instructions:
+CRITICAL INSTRUCTIONS - ACTUAL CODE IMPLEMENTATION REQUIRED:
 1. Use `task-master next` to find the next available task
 2. Use `task-master show <id>` to get detailed task information
-3. Implement the task requirements following the specifications
-4. Mark tasks as completed using `task-master set-status --id=<id> --status=done`
-5. Continue until all pending tasks for this ticket are complete
+3. **MANDATORY: IMPLEMENT ACTUAL CODE** - Create/modify files, write functions, add classes, implement features
+4. **VERIFICATION REQUIRED**: Before marking any task complete, run `git status` to verify files were modified
+5. **IMPLEMENTATION REQUIREMENTS**:
+   - Create new .py files when required
+   - Modify existing files to add/update functionality  
+   - Write actual function implementations, not just stubs
+   - Add proper error handling and logging
+   - Include imports and dependencies
+6. **TESTING REQUIRED**: Test implementations to ensure they work correctly
+7. **ONLY mark as done AFTER**:
+   - Writing actual code that implements the task requirements
+   - Verifying with `git status` that files were changed
+   - Testing the implementation works
+8. Use `task-master set-status --id=<id> --status=done` ONLY after completing real implementation
+9. Continue processing until ALL pending tasks have working code implementations
 
-Focus on implementing actual code changes as specified in the task requirements. Don't stop until all tasks are properly implemented and working."""
+ABSOLUTE REQUIREMENT: Every completed task MUST result in actual file modifications visible in `git status`. 
+Tasks without file changes will be considered FAILED and rolled back to pending status.
+
+If a task seems unclear, use `task-master show <id>` for details before implementing."""
         
         logger.info(f"🤖 ClaudeEngineInvoker initialized with timeout: {timeout_minutes}m, retries: {max_retries}")
         logger.info(f"📁 Project root: {project_root}")
