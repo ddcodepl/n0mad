@@ -16,6 +16,7 @@ import json
 import shutil
 import subprocess
 import time
+import hashlib
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pathlib import Path
@@ -297,6 +298,59 @@ class SimpleQueuedProcessor:
             logger.error(f"❌ Failed to copy task file: {e}")
             return False
     
+    def _get_file_checksums(self, directory: Path) -> Dict[str, str]:
+        """
+        Get checksums of all Python files in a directory for change detection.
+        
+        Args:
+            directory: Directory to scan
+            
+        Returns:
+            Dictionary mapping file paths to their MD5 checksums
+        """
+        checksums = {}
+        try:
+            for file_path in directory.rglob("*.py"):
+                if file_path.is_file():
+                    try:
+                        with open(file_path, 'rb') as f:
+                            content = f.read()
+                            checksums[str(file_path.relative_to(self.project_root))] = hashlib.md5(content).hexdigest()
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not read {file_path}: {e}")
+            return checksums
+        except Exception as e:
+            logger.error(f"❌ Error scanning directory {directory}: {e}")
+            return {}
+    
+    def _detect_file_changes(self, before_checksums: Dict[str, str], after_checksums: Dict[str, str]) -> List[str]:
+        """
+        Detect which files were changed.
+        
+        Args:
+            before_checksums: Checksums before execution
+            after_checksums: Checksums after execution
+            
+        Returns:
+            List of changed file paths
+        """
+        changed_files = []
+        
+        # Check for modified files
+        for file_path, checksum in after_checksums.items():
+            if file_path in before_checksums:
+                if before_checksums[file_path] != checksum:
+                    changed_files.append(f"Modified: {file_path}")
+            else:
+                changed_files.append(f"Created: {file_path}")
+        
+        # Check for deleted files
+        for file_path in before_checksums:
+            if file_path not in after_checksums:
+                changed_files.append(f"Deleted: {file_path}")
+        
+        return changed_files
+    
     def _execute_claude_command(self) -> bool:
         """
         Execute Claude Code command to process all tasks.
@@ -307,49 +361,148 @@ class SimpleQueuedProcessor:
         try:
             logger.info("🤖 Executing Claude Code command...")
             
+            # Get file checksums before execution to detect changes
+            logger.info("📊 Scanning files before Claude Code execution...")
+            before_checksums = self._get_file_checksums(self.project_root / "src")
+            logger.info(f"📁 Found {len(before_checksums)} Python files to monitor")
+            
             # Change to project root directory for Claude Code execution
             original_cwd = os.getcwd()
             os.chdir(self.project_root)
             
             try:
                 # Execute Claude Code with the predefined prompt
-                # Using headless mode to avoid interactive prompts
-                prompt = "Process all tasks from the task master, don't stop unless you finish all of the tasks, after that close the app."
+                # Using comprehensive prompt to ensure it modifies files
+                prompt = """Process all tasks from the task master in sequence. For each task:
+1. Read the task details carefully
+2. Implement the required functionality by modifying source files
+3. Write or update code files as needed
+4. Ensure all changes are saved to disk
+5. Complete the task fully before moving to the next one
+6. Don't stop until ALL tasks are completed
+7. After completing all tasks, close the app
+
+IMPORTANT: You must modify actual source files in the project. Don't just plan - implement the code changes."""
                 
-                cmd = ["claude", "-p", prompt]
+                # Try different command formats for better compatibility
+                cmd_variants = [
+                    ["claude", "-p", prompt],  # Standard interactive mode first
+                    ["claude", "--auto-approve", "-p", prompt],
+                    ["claude", "--headless", "-p", prompt]
+                ]
                 
-                logger.info(f"🚀 Running command: {' '.join(cmd)}")
+                success = False
+                last_error = None
                 
-                # Execute with timeout to prevent hanging
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=3600,  # 1 hour timeout
-                    cwd=self.project_root
-                )
+                for cmd in cmd_variants:
+                    try:
+                        logger.info(f"🚀 Trying command: {' '.join(cmd)}")
+                        
+                        # Set environment variables for better Claude Code behavior
+                        env = os.environ.copy()
+                        env.update({
+                            'CLAUDE_AUTO_APPROVE': 'true' if '--auto-approve' in cmd else 'false',
+                            'CLAUDE_HEADLESS': 'true' if '--headless' in cmd else 'false',
+                            'CLAUDE_PROJECT_ROOT': str(self.project_root),
+                            'PYTHONPATH': str(self.project_root / 'src'),
+                            'CLAUDE_WORKING_DIR': str(self.project_root)
+                        })
+                        
+                        # Ensure Claude settings directory exists with proper permissions
+                        claude_dir = self.project_root / ".claude"
+                        claude_dir.mkdir(exist_ok=True)
+                        
+                        # Create settings file if it doesn't exist
+                        settings_file = claude_dir / "settings.json"
+                        if not settings_file.exists():
+                            settings_content = {
+                                "allowedTools": [
+                                    "Edit", "MultiEdit", "Write", "Read", "Bash", 
+                                    "LS", "Glob", "Grep", "TodoWrite", "mcp__task_master_ai__*"
+                                ],
+                                "autoApprove": "--auto-approve" in cmd,
+                                "headless": "--headless" in cmd,
+                                "maxTokens": 200000,
+                                "workingDirectory": str(self.project_root)
+                            }
+                            with open(settings_file, 'w') as f:
+                                json.dump(settings_content, f, indent=2)
+                            logger.info(f"📋 Created Claude settings at {settings_file}")
+                        
+                        # Execute with extended timeout and proper environment
+                        result = subprocess.run(
+                            cmd,
+                            capture_output=True,
+                            text=True,
+                            timeout=3600,  # 1 hour timeout
+                            cwd=self.project_root,
+                            env=env
+                        )
+                        
+                        logger.info(f"📊 Claude Code exit code: {result.returncode}")
+                        
+                        # Log stdout (more lines for better debugging)
+                        if result.stdout:
+                            logger.info("📋 Claude Code stdout:")
+                            stdout_lines = result.stdout.split('\n')
+                            for i, line in enumerate(stdout_lines[:20]):  # Log first 20 lines
+                                if line.strip():
+                                    logger.info(f"   {i+1:2d}: {line}")
+                            if len(stdout_lines) > 20:
+                                logger.info(f"   ... ({len(stdout_lines) - 20} more lines)")
+                        
+                        # Log stderr
+                        if result.stderr:
+                            logger.warning("⚠️ Claude Code stderr:")
+                            stderr_lines = result.stderr.split('\n')
+                            for i, line in enumerate(stderr_lines[:10]):  # Log first 10 lines
+                                if line.strip():
+                                    logger.warning(f"   {i+1:2d}: {line}")
+                            if len(stderr_lines) > 10:
+                                logger.warning(f"   ... ({len(stderr_lines) - 10} more lines)")
+                        
+                        # Consider exit code 0 as success
+                        if result.returncode == 0:
+                            success = True
+                            logger.info("✅ Claude Code execution completed successfully")
+                            break
+                        else:
+                            last_error = f"Exit code {result.returncode}"
+                            logger.warning(f"⚠️ Command failed with exit code {result.returncode}, trying next variant...")
+                            
+                    except subprocess.TimeoutExpired:
+                        last_error = "Timeout after 1 hour"
+                        logger.warning("⚠️ Command timed out, trying next variant...")
+                        continue
+                    except FileNotFoundError:
+                        last_error = "Claude command not found"
+                        logger.warning("⚠️ Claude command not found, trying next variant...")
+                        continue
+                    except Exception as e:
+                        last_error = str(e)
+                        logger.warning(f"⚠️ Command failed with error: {e}, trying next variant...")
+                        continue
                 
-                logger.info(f"📊 Claude Code exit code: {result.returncode}")
-                
-                if result.stdout:
-                    logger.info("📋 Claude Code stdout:")
-                    for line in result.stdout.split('\n')[:10]:  # Log first 10 lines
-                        if line.strip():
-                            logger.info(f"   {line}")
-                
-                if result.stderr:
-                    logger.warning("⚠️ Claude Code stderr:")
-                    for line in result.stderr.split('\n')[:10]:  # Log first 10 lines
-                        if line.strip():
-                            logger.warning(f"   {line}")
-                
-                # Consider exit code 0 as success
-                success = result.returncode == 0
-                
-                if success:
-                    logger.info("✅ Claude Code execution completed successfully")
+                if not success:
+                    logger.error(f"❌ All Claude Code command variants failed. Last error: {last_error}")
                 else:
-                    logger.error(f"❌ Claude Code execution failed with exit code {result.returncode}")
+                    # Check for file changes after successful execution
+                    logger.info("📊 Scanning files after Claude Code execution...")
+                    after_checksums = self._get_file_checksums(self.project_root / "src")
+                    changed_files = self._detect_file_changes(before_checksums, after_checksums)
+                    
+                    if changed_files:
+                        logger.info(f"✅ Claude Code made changes to {len(changed_files)} files:")
+                        for change in changed_files[:10]:  # Show first 10 changes
+                            logger.info(f"   📝 {change}")
+                        if len(changed_files) > 10:
+                            logger.info(f"   ... and {len(changed_files) - 10} more files")
+                    else:
+                        logger.warning("⚠️ No file changes detected - Claude Code may not have modified source files")
+                        logger.info("💡 This could mean:")
+                        logger.info("   - Tasks were already implemented")
+                        logger.info("   - Claude Code encountered permission issues")
+                        logger.info("   - Tasks only involved reading/analysis without code changes")
                 
                 return success
                 
@@ -357,12 +510,6 @@ class SimpleQueuedProcessor:
                 # Always restore original working directory
                 os.chdir(original_cwd)
                 
-        except subprocess.TimeoutExpired:
-            logger.error("❌ Claude Code execution timed out after 1 hour")
-            return False
-        except FileNotFoundError:
-            logger.error("❌ Claude Code command not found. Make sure 'claude' is installed and in PATH")
-            return False
         except Exception as e:
             logger.error(f"❌ Claude Code execution failed: {e}")
             return False
