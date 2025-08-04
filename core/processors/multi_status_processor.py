@@ -79,6 +79,119 @@ class MultiStatusProcessor:
         logger.info(f"   📁 Project root: {self.project_root}")
         logger.info(f"   🔧 Configured for {len(self.status_processors)} status types")
     
+    def _safe_status_transition(self, task_id: str, expected_from_status: str, 
+                               to_status: str, task_description: str = "") -> Dict[str, Any]:
+        """
+        Safely transition a task status by first checking the current actual status
+        to handle race conditions and status changes between query and transition.
+        
+        Args:
+            task_id: The task/page ID to transition
+            expected_from_status: The status we expect the task to have
+            to_status: The target status to transition to
+            task_description: Optional description for logging
+            
+        Returns:
+            Dict with 'success' (bool), 'message' (str), and optional 'current_status' (str)
+        """
+        try:
+            desc = f" {task_description}" if task_description else ""
+            logger.info(f"🔍 Checking current status for{desc} task: {task_id}")
+            
+            # Get the current actual status from Notion to handle race conditions
+            current_page = self.notion_client.get_page(task_id)
+            current_status = self.notion_client._extract_status_from_page(current_page)
+            
+            logger.info(f"📋 Task {task_id} current status: '{current_status}', expected: '{expected_from_status}'")
+            
+            # Handle based on actual current status
+            if current_status == expected_from_status:
+                # Status matches expectation - proceed with transition
+                logger.info(f"🚀 Transitioning{desc} task {task_id}: '{expected_from_status}' → '{to_status}'")
+                transition = self.status_manager.transition_status(
+                    page_id=task_id,
+                    from_status=expected_from_status,
+                    to_status=to_status
+                )
+                
+                if transition.result.value == "success":
+                    logger.info(f"✅ Successfully transitioned{desc} task {task_id} to '{to_status}'")
+                    return {
+                        'success': True,
+                        'message': f"Successfully transitioned to '{to_status}'",
+                        'current_status': to_status
+                    }
+                else:
+                    logger.error(f"❌ Failed to transition{desc} task {task_id}: {transition.error}")
+                    return {
+                        'success': False,
+                        'message': f"Transition failed: {transition.error}",
+                        'current_status': current_status
+                    }
+                    
+            elif current_status == to_status:
+                # Already in target status - this is actually success
+                logger.info(f"✅ Task {task_id} already in '{to_status}' status - no action needed")
+                return {
+                    'success': True,
+                    'message': f"Already in target status '{to_status}'",
+                    'current_status': current_status
+                }
+                
+            else:
+                # Unexpected status - determine if this is an error or just a race condition
+                logger.warning(f"⚠️ Task {task_id} has unexpected status '{current_status}' (expected '{expected_from_status}')")
+                
+                # Check if the current status is a valid "downstream" status that indicates the task has progressed
+                valid_downstream_statuses = self._get_downstream_statuses(expected_from_status)
+                
+                if current_status in valid_downstream_statuses:
+                    logger.info(f"ℹ️  Task {task_id} has progressed beyond expected status - treating as success")
+                    return {
+                        'success': True,
+                        'message': f"Task has progressed to '{current_status}' (beyond '{expected_from_status}')",
+                        'current_status': current_status
+                    }
+                else:
+                    logger.warning(f"⚠️ Task {task_id} status '{current_status}' is not a valid progression from '{expected_from_status}' - skipping")
+                    return {
+                        'success': False,
+                        'message': f"Invalid status progression: '{current_status}' is not downstream from '{expected_from_status}'",
+                        'current_status': current_status
+                    }
+                    
+        except Exception as e:
+            logger.error(f"❌ Error in safe status transition for{desc} task {task_id}: {e}")
+            return {
+                'success': False,
+                'message': f"Exception during transition: {str(e)}",
+                'current_status': 'unknown'
+            }
+    
+    def _get_downstream_statuses(self, from_status: str) -> List[str]:
+        """
+        Get list of valid "downstream" statuses that indicate task progression beyond the expected status.
+        
+        Args:
+            from_status: The status we're transitioning from
+            
+        Returns:
+            List of status strings that are valid progressions
+        """
+        # Define the typical workflow progression
+        status_flow = {
+            "To Refine": ["Refined", "Prepare Tasks", "Preparing Tasks", "Ready to run", "Queued to run", "In progress", "Done"],
+            "Refined": ["Prepare Tasks", "Preparing Tasks", "Ready to run", "Queued to run", "In progress", "Done"],
+            "Prepare Tasks": ["Preparing Tasks", "Ready to run", "Queued to run", "In progress", "Done"],
+            "Preparing Tasks": ["Ready to run", "Queued to run", "In progress", "Done"],
+            "Ready to run": ["Queued to run", "In progress", "Done"],
+            "Queued to run": ["In progress", "Done"],
+            "In progress": ["Done"],
+            "Failed": []  # Failed tasks don't have downstream statuses
+        }
+        
+        return status_flow.get(from_status, [])
+    
     def process_all_statuses(self, include_statuses: Optional[Set[TaskStatus]] = None, 
                            exclude_statuses: Optional[Set[TaskStatus]] = None) -> Dict[str, Any]:
         """
@@ -403,21 +516,19 @@ class MultiStatusProcessor:
             for task in completed_tasks:
                 try:
                     task_id = task.get("id", "unknown")
-                    logger.info(f"🚀 Transitioning completed task to 'Ready to Run': {task_id}")
                     
-                    # Transition from 'Preparing Tasks' to 'Ready to Run'
-                    transition = self.status_manager.transition_status(
-                        page_id=task_id,
-                        from_status=TaskStatus.PREPARING_TASKS.value,
-                        to_status=TaskStatus.READY_TO_RUN.value
+                    # Use safe status transition to handle race conditions
+                    result = self._safe_status_transition(
+                        task_id=task_id,
+                        expected_from_status=TaskStatus.PREPARING_TASKS.value,
+                        to_status=TaskStatus.READY_TO_RUN.value,
+                        task_description="preparing"
                     )
                     
-                    if transition.result.value == "success":
+                    if result['success']:
                         successful_transitions += 1
-                        logger.info(f"✅ Successfully transitioned task {task_id} to 'Ready to Run'")
                     else:
                         failed_transitions += 1
-                        logger.error(f"❌ Failed to transition task {task_id}: {transition.error}")
                         
                 except Exception as e:
                     failed_transitions += 1
@@ -661,28 +772,23 @@ class MultiStatusProcessor:
             for task in refined_tasks:
                 try:
                     task_id = task.get("id", "unknown")
-                    logger.info(f"🔧 Processing refined task: {task_id}")
                     
-                    # First, update status to 'Prepare Tasks'
-                    transition = self.status_manager.transition_status(
-                        page_id=task_id,
-                        from_status=TaskStatus.REFINED.value,
-                        to_status=TaskStatus.PREPARE_TASKS.value
+                    # Use safe status transition to handle race conditions
+                    result = self._safe_status_transition(
+                        task_id=task_id,
+                        expected_from_status=TaskStatus.REFINED.value,
+                        to_status=TaskStatus.PREPARE_TASKS.value,
+                        task_description="refined"
                     )
                     
-                    if transition.result.value != "success":
-                        logger.error(f"❌ Failed to transition {task_id} to 'Prepare Tasks': {transition.error}")
+                    if result['success']:
+                        # Now trigger the prepare workflow by calling the prepare processor
+                        # But we need to wait a moment for the status change to propagate
+                        import time
+                        time.sleep(1)
+                        successful_tasks += 1
+                    else:
                         failed_tasks += 1
-                        continue
-                    
-                    logger.info(f"✅ Transitioned {task_id} to 'Prepare Tasks'")
-                    
-                    # Now trigger the prepare workflow by calling the prepare processor
-                    # But we need to wait a moment for the status change to propagate
-                    import time
-                    time.sleep(1)
-                    
-                    successful_tasks += 1
                     
                 except Exception as e:
                     failed_tasks += 1
@@ -747,21 +853,19 @@ class MultiStatusProcessor:
             for task in ready_tasks:
                 try:
                     task_id = task.get("id", "unknown")
-                    logger.info(f"🚀 Transitioning ready task to queue: {task_id}")
                     
-                    # Transition from 'Ready to Run' to 'Queued to run'
-                    transition = self.status_manager.transition_status(
-                        page_id=task_id,
-                        from_status=TaskStatus.READY_TO_RUN.value,
-                        to_status=TaskStatus.QUEUED_TO_RUN.value
+                    # Use safe status transition to handle race conditions
+                    result = self._safe_status_transition(
+                        task_id=task_id,
+                        expected_from_status=TaskStatus.READY_TO_RUN.value,
+                        to_status=TaskStatus.QUEUED_TO_RUN.value,
+                        task_description="ready"
                     )
                     
-                    if transition.result.value == "success":
+                    if result['success']:
                         successful_transitions += 1
-                        logger.info(f"✅ Successfully queued task: {task_id}")
                     else:
                         failed_transitions += 1
-                        logger.error(f"❌ Failed to queue task {task_id}: {transition.error}")
                         
                 except Exception as e:
                     failed_transitions += 1
