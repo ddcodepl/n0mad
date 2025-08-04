@@ -27,6 +27,7 @@ from utils.file_operations import FileOperations
 from core.operations.command_executor import CommandExecutor
 from core.processors.simple_queued_processor import SimpleQueuedProcessor
 from utils.logging_config import get_logger
+from utils.file_operations import get_tasks_dir
 
 logger = get_logger(__name__)
 
@@ -50,7 +51,7 @@ class MultiStatusProcessor:
         
         # Initialize mode-specific processors
         self.openai_client = OpenAIClient()
-        self.file_ops = FileOperations(base_dir=str(self.project_root / "src" / "tasks"))
+        self.file_ops = FileOperations()  # Will use TASKS_DIR from environment or default to ./tasks
         self.cmd_executor = CommandExecutor(base_dir=str(self.project_root))
         self.content_processor = ContentProcessor(self.notion_client, self.openai_client, self.file_ops)
         self.simple_queued_processor = SimpleQueuedProcessor(str(self.project_root))
@@ -410,7 +411,7 @@ class MultiStatusProcessor:
             
             # Copy tasks.json files
             taskmaster_tasks_path = os.path.join(self.project_root, ".taskmaster", "tasks", "tasks.json")
-            tasks_dest_dir = os.path.join(self.project_root, "src", "tasks", "tasks")
+            tasks_dest_dir = os.path.join(get_tasks_dir(), "tasks")
             copy_results = self.file_ops.copy_tasks_file(successful_ticket_ids, source_path=taskmaster_tasks_path, dest_dir=tasks_dest_dir)
             
             # Upload JSON files to Notion pages
@@ -424,7 +425,7 @@ class MultiStatusProcessor:
                     upload_data.append({
                         "ticket_id": ticket_id,
                         "page_id": page["id"],
-                        "tasks_file_path": os.path.join(self.project_root, "src", "tasks", "tasks", f"{full_ticket_id}.json")
+                        "tasks_file_path": os.path.join(get_tasks_dir(), "tasks", f"{full_ticket_id}.json")
                     })
             
             upload_results = self.notion_client.upload_tasks_files_to_pages(upload_data)
@@ -585,7 +586,7 @@ class MultiStatusProcessor:
             # We'll need to check if the JSON file exists in the expected location
             
             # Check if there's a corresponding generated tasks JSON file
-            tasks_dest_dir = os.path.join(self.project_root, "src", "tasks", "tasks")
+            tasks_dest_dir = os.path.join(get_tasks_dir(), "tasks")
             
             # Try to find a JSON file for this task ID
             # The file might be named after the ticket ID format

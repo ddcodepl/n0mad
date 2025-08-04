@@ -38,6 +38,7 @@ from utils.performance_integration import (
     PerformanceContext
 )
 from utils.logging_config import get_logger
+from utils.file_operations import get_tasks_dir
 from utils.config import config_manager
 from core.processors.simple_queued_processor import SimpleQueuedProcessor
 from core.processors.multi_status_processor import MultiStatusProcessor
@@ -89,12 +90,12 @@ class NotionDeveloper:
             
             if mode == "refine":
                 # Use consistent project root approach for refine mode
-                self.file_ops = FileOperations(base_dir=os.path.join(self.project_root, "data"))
+                self.file_ops = FileOperations()  # Will use TASKS_DIR from environment or default to ./tasks
                 self.db_ops = DatabaseOperations(self.notion_client)
                 self.processor = ContentProcessor(self.notion_client, self.openai_client, self.file_ops)
             elif mode == "prepare":
                 # Initialize both FileOperations and CommandExecutor with the same project root context
-                self.file_ops = FileOperations(base_dir=os.path.join(self.project_root, "data"))
+                self.file_ops = FileOperations()  # Will use TASKS_DIR from environment or default to ./tasks
                 self.cmd_executor = CommandExecutor(base_dir=self.project_root)
             elif mode == "queued":
                 # Initialize simple queued processor
@@ -405,7 +406,7 @@ class NotionDeveloper:
             # Construct path to .taskmaster/tasks/tasks.json relative to FileOperations base_dir
             taskmaster_tasks_path = os.path.join(self.project_root, ".taskmaster", "tasks", "tasks.json")
             # Construct absolute path to tasks subdirectory  
-            tasks_dest_dir = os.path.join(self.project_root, "data", "tasks")
+            tasks_dest_dir = os.path.join(get_tasks_dir(), "tasks")
             copy_results = self.file_ops.copy_tasks_file(successful_ticket_ids, source_path=taskmaster_tasks_path, dest_dir=tasks_dest_dir)
             workflow_results["step_results"]["copy_files"] = copy_results
             
@@ -435,7 +436,7 @@ class NotionDeveloper:
                     upload_data.append({
                         "ticket_id": ticket_id,
                         "page_id": ticket_data["page_id"],
-                        "tasks_file_path": os.path.join(self.project_root, "data", "tasks", f"{full_ticket_id}.json")
+                        "tasks_file_path": os.path.join(get_tasks_dir(), "tasks", f"{full_ticket_id}.json")
                     })
             
             upload_results = self.notion_client.upload_tasks_files_to_pages(upload_data)

@@ -41,7 +41,7 @@ class SimpleQueuedProcessor:
             project_root: Root directory of the project
         """
         self.project_root = Path(project_root)
-        self.task_dir = self.project_root / "src" / "tasks" / "tasks"
+        self.task_dir = self.project_root / "tasks" / "tasks"
         self.taskmaster_tasks_file = self.project_root / ".taskmaster" / "tasks" / "tasks.json"
         
         # Initialize components

@@ -5,6 +5,7 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 import shlex
 from utils.logging_config import get_logger
+from utils.file_operations import get_tasks_dir
 
 logger = get_logger(__name__)
 
@@ -28,15 +29,15 @@ class CommandExecutor:
         
         Args:
             ticket_ids: List of validated ticket IDs that have corresponding files
-            refined_dir: Directory containing the refined markdown files (defaults to {base_dir}/src/tasks/refined)
+            refined_dir: Directory containing the refined markdown files (defaults to {base_dir}/tasks/refined)
         
         Returns:
             Dictionary with execution results for each ticket
         """
         # Use consistent path calculation with main.py approach
         if refined_dir is None:
-            # Default to src/tasks/refined relative to the base_dir (project root)
-            tasks_base_dir = os.path.join(self.base_dir, "src", "tasks")
+            # Use TASKS_DIR environment variable or default to './tasks'
+            tasks_base_dir = get_tasks_dir()
             refined_dir = os.path.join(tasks_base_dir, "refined")
             # Normalize the path to remove any ./ components
             refined_dir = os.path.normpath(refined_dir)

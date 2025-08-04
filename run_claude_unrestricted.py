@@ -430,7 +430,8 @@ def main():
     
     if success and changes_detected:
         print("\n🎉 SUCCESS: Claude Code implemented actual code changes!")
-        print(f"📋 Summary files generated in: src/tasks/summary/")
+        from utils.file_operations import get_tasks_dir
+        print(f"📋 Summary files generated in: {get_tasks_dir()}/summary/")
     elif success and not changes_detected:
         print("\n⚠️ WARNING: Claude Code ran but no file changes detected")
         print("   This might mean tasks were already implemented or no code changes were needed")

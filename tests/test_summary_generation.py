@@ -78,7 +78,8 @@ def main():
     if success:
         print("✅ All tests passed!")
         print("🎉 Summary generation is working correctly")
-        print("\n📁 Check the src/tasks/summary/ directory for generated files")
+        from utils.file_operations import get_tasks_dir
+        print(f"\n📁 Check the {get_tasks_dir()}/summary/ directory for generated files")
     else:
         print("❌ Tests failed!")
         print("🔧 Check the error messages above for troubleshooting")

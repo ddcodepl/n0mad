@@ -1,0 +1,145 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 171,
+        "title": "Perform Codebase Reconnaissance and Analysis",
+        "description": "Analyze the existing repository structure to identify all modules, files, services, integration points, and dependencies that need to be reorganized",
+        "details": "Conduct comprehensive analysis of current codebase including: 1) Catalog all top-level scripts (main.py, main_workflow.py) and their functions, 2) Identify all client-related code segments and modules, 3) Map existing import dependencies and integration points, 4) Document current test suites and configuration files, 5) Analyze existing logger configuration and usage patterns, 6) Create inventory of all loose files and subdirectories, 7) Document current CLI argument parsing and configuration file handling, 8) Identify any build/deploy scripts that reference current paths",
+        "testStrategy": "Create comprehensive documentation of current structure with module dependency graph, validate inventory completeness by cross-referencing with file system scan, verify all integration points are captured",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 172,
+        "title": "Design New Directory Structure and Architecture",
+        "description": "Define the new modular directory layout with clear separation of concerns and design the unified entry point architecture",
+        "details": "Design new directory structure: /clients/ for all client integrations, /core/ or /services/ for business logic, /utils/ for utilities/helpers, /entry/ or /app/ for unified entry point, /logs/ for session logs. Design unified entry point using Facade pattern to merge main.py and main_workflow.py functionality. Define common Client interface (e.g., Client.execute()) for all client modules. Plan Dependency Injection approach for logger, configuration, and module wiring. Create mapping of old-to-new import paths for all modules",
+        "testStrategy": "Review design with stakeholders, validate directory structure follows best practices, ensure all existing functionality can be accommodated in new structure",
+        "priority": "high",
+        "dependencies": [
+          171
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 173,
+        "title": "Create New Directory Structure",
+        "description": "Implement the new directory layout by creating the required folders and establishing the foundation for module reorganization",
+        "details": "Create new directory structure: mkdir -p clients/ core/ utils/ entry/ logs/. Set up __init__.py files in each new directory to make them proper Python packages. Create placeholder files or basic structure files to establish the layout. Ensure proper filesystem permissions are set, especially for logs/ directory to prevent unauthorized access",
+        "testStrategy": "Verify all directories are created with correct permissions, validate Python can import from new package structure, test log directory write permissions",
+        "priority": "medium",
+        "dependencies": [
+          172
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 174,
+        "title": "Relocate Client Modules to /clients Directory",
+        "description": "Move all client-related code segments and modules to the new /clients directory and update their internal imports",
+        "details": "Identify and move all client modules to /clients/ directory. Update internal imports within client modules to reflect new paths. Implement common Client interface across all client modules with standardized execute() method. Ensure each client module maintains its existing functionality while conforming to new interface. Update any client-specific configuration or data files",
+        "testStrategy": "Unit tests for each relocated client module, integration tests to verify client interface conformity, regression tests to ensure existing client functionality is preserved",
+        "priority": "medium",
+        "dependencies": [
+          173
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 175,
+        "title": "Relocate Core Business Logic to /core Directory",
+        "description": "Move business logic modules and services to the new /core directory and update their import dependencies",
+        "details": "Identify and relocate core business logic modules to /core/ directory. Update all imports within these modules to reference new paths for utilities and other dependencies. Ensure service modules maintain clear separation of concerns. Update any configuration files or data files referenced by core modules with new relative paths",
+        "testStrategy": "Unit tests for each relocated core module, integration tests to verify module interactions, functional tests to ensure business logic remains intact",
+        "priority": "medium",
+        "dependencies": [
+          173
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 176,
+        "title": "Relocate Utility Modules to /utils Directory",
+        "description": "Move utility and helper modules to the new /utils directory and ensure they remain accessible to other modules",
+        "details": "Move all utility and helper modules to /utils/ directory. These include configuration helpers, data processing utilities, and common functions. Update imports within utility modules. Ensure utilities remain easily importable by client and core modules. Maintain backward compatibility for any external references to utilities",
+        "testStrategy": "Unit tests for all utility functions, integration tests to verify utilities are accessible from client and core modules, regression tests for utility functionality",
+        "priority": "low",
+        "dependencies": [
+          173
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 177,
+        "title": "Create Unified Entry Point",
+        "description": "Merge main.py and main_workflow.py into a single unified entry point file in the /entry directory",
+        "details": "Create unified entry point in /entry/ directory that combines functionality from main.py and main_workflow.py. Implement Facade pattern to hide complexity of merging. Preserve all existing command-line argument parsing and configuration file handling. Use Dependency Injection to wire together logger, configuration, and modules. Ensure the new entry point can handle all existing use cases and workflows. Maintain existing CLI interface and behavior",
+        "testStrategy": "Comprehensive integration tests covering all CLI scenarios, regression tests comparing old vs new entry point behavior, performance tests to ensure startup time within 5% of baseline",
+        "priority": "high",
+        "dependencies": [
+          174,
+          175
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 178,
+        "title": "Implement Standardized Logging with Session Files",
+        "description": "Standardize logging configuration to write timestamped session logs to ./logs directory while maintaining existing logger conventions",
+        "details": "Extend existing logger configuration to include file handlers writing to ./logs/<YYYYMMDD_HHMMSS>.log. Maintain existing logger formatters and handlers while adding file output capability. Ensure sensitive information redaction practices are preserved. Configure log rotation and cleanup policies. Integrate session logging into unified entry point. Set appropriate filesystem permissions on log files",
+        "testStrategy": "Smoke tests to validate log file creation with correct naming convention, security tests to verify log file permissions, functional tests to ensure existing logging behavior is preserved, performance tests to verify no significant logging overhead",
+        "priority": "medium",
+        "dependencies": [
+          173,
+          177
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 179,
+        "title": "Update All Import Statements and References",
+        "description": "Systematically update all import statements across the codebase to reflect the new directory structure and module locations",
+        "details": "Systematically update all import statements throughout the codebase to use new module paths. Update test fixtures and mocks to reference relocated modules. Modify any build/deploy scripts or CI/CD pipelines to point to new unified entry point. Update documentation and configuration files that reference old paths. Use find/replace tools and IDE refactoring capabilities to ensure completeness",
+        "testStrategy": "Comprehensive import tests to catch any broken imports, static analysis to verify all references are updated, integration tests to ensure modules can find their dependencies, regression tests to validate system functionality",
+        "priority": "high",
+        "dependencies": [
+          174,
+          175,
+          176,
+          177
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 180,
+        "title": "Execute Comprehensive Testing and Performance Validation",
+        "description": "Run full test suite, performance benchmarks, and regression tests to ensure the reorganized codebase maintains all functionality within performance targets",
+        "details": "Execute comprehensive test suite including unit tests, integration tests, and end-to-end tests. Run performance benchmarks to ensure startup and execution time remain within 5% of baseline. Conduct regression testing comparing old vs new codebase behavior. Test all CLI scenarios and configuration options. Verify log file creation and content. Test client module interfaces and core business logic. Validate that no functionality has been lost in the reorganization",
+        "testStrategy": "Full test suite execution with 100% pass rate, performance benchmarking showing <5% variance from baseline, regression test comparison matrix, smoke tests for all major functionality, load testing for performance validation",
+        "priority": "high",
+        "dependencies": [
+          178,
+          179
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-08-04T03:18:39.436Z",
+      "updated": "2025-08-04T22:33:34.323Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

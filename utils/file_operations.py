@@ -10,11 +10,21 @@ import re
 logger = logging.getLogger(__name__)
 
 
+def get_tasks_dir() -> str:
+    """
+    Get the tasks directory from TASKS_DIR environment variable or default to './tasks'.
+    
+    Returns:
+        str: Path to the tasks directory
+    """
+    return os.getenv("TASKS_DIR", "./tasks")
+
+
 class FileOperations:
     def __init__(self, base_dir: str = None):
         # Load TASKS_DIR from environment variable, with fallback to default
         if base_dir is None:
-            base_dir = os.getenv("TASKS_DIR", "./tasks")
+            base_dir = get_tasks_dir()
         
         self.base_dir = base_dir
         self.pre_refined_dir = os.path.join(base_dir, "pre-refined")
@@ -158,7 +168,7 @@ class FileOperations:
     
     def validate_task_files(self, ticket_ids: list) -> list:
         """
-        Validate that corresponding markdown files exist in src/tasks/refined/ directory for extracted ticket IDs.
+        Validate that corresponding markdown files exist in tasks/refined/ directory for extracted ticket IDs.
         
         Args:
             ticket_ids: List of ticket IDs to validate
@@ -223,18 +233,22 @@ class FileOperations:
         
         return valid_ticket_ids
     
-    def copy_tasks_file(self, ticket_ids: list, source_path: str = ".taskmaster/tasks/tasks.json", dest_dir: str = "src/tasks/tasks") -> dict:
+    def copy_tasks_file(self, ticket_ids: list, source_path: str = ".taskmaster/tasks/tasks.json", dest_dir: str = None) -> dict:
         """
-        Copy tasks.json from .taskmaster/tasks/ to src/tasks/tasks/<id>.json for each processed ticket.
+        Copy tasks.json from .taskmaster/tasks/ to tasks/tasks/<id>.json for each processed ticket.
         
         Args:
             ticket_ids: List of ticket IDs to copy tasks file for
             source_path: Path to source tasks.json file
-            dest_dir: Destination directory for copied files
+            dest_dir: Destination directory for copied files (defaults to TASKS_DIR/tasks)
         
         Returns:
             Dictionary with copy results
         """
+        # Use default destination directory if not provided
+        if dest_dir is None:
+            dest_dir = os.path.join(get_tasks_dir(), "tasks")
+            
         results = {
             "successful_copies": [],
             "failed_copies": [],
