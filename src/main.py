@@ -27,6 +27,7 @@ from feedback_manager import FeedbackManager, ProcessingStage
 from claude_engine_invoker import ClaudeEngineInvoker, InvocationResult
 from task_file_manager import TaskFileManager, CopyResult
 from multi_queue_processor import MultiQueueProcessor
+from polling_scheduler import PollingScheduler, CircuitBreakerConfig
 from performance_integration import (
     initialize_performance_monitoring, 
     integrate_all_components,
@@ -34,6 +35,7 @@ from performance_integration import (
     PerformanceContext
 )
 from logging_config import get_logger
+from config import config_manager
 
 load_dotenv()
 
@@ -107,6 +109,17 @@ class NotionDeveloper:
                     self.task_file_manager,
                     self.project_root
                 )
+                
+                # Initialize polling scheduler for continuous operation
+                circuit_breaker_config = CircuitBreakerConfig(
+                    failure_threshold=5,
+                    recovery_timeout=60,
+                    success_threshold=2
+                )
+                self.polling_scheduler = PollingScheduler(
+                    task_processor_callback=self._process_queued_tasks_callback,
+                    circuit_breaker_config=circuit_breaker_config
+                )
             
             if not self.notion_client.test_connection():
                 raise Exception("Failed to connect to Notion database")
@@ -132,6 +145,11 @@ class NotionDeveloper:
             logger.info("🧹 Cleaning up old backup files...")
             cleanup_results = self.task_file_manager.cleanup_backups(max_age_days=7)
             logger.info(f"🧹 Cleanup completed: {cleanup_results['cleaned_files']} files removed, {cleanup_results['total_size_freed']} bytes freed")
+        
+        # Stop polling scheduler if active
+        if hasattr(self, 'polling_scheduler'):
+            logger.info("⏹️ Stopping polling scheduler...")
+            self.polling_scheduler.stop(timeout=30.0)
         
         # Request cancellation for multi-queue processor if active
         if hasattr(self, 'multi_queue_processor'):
@@ -452,68 +470,150 @@ class NotionDeveloper:
         
         return workflow_results
     
-    def run_queued_mode(self):
-        """Run the queued mode - process tasks with 'Queued to run' status using multi-queue orchestration"""
-        logger.info("🚀 Starting enhanced queued mode with multi-queue orchestration...")
+    def _process_queued_tasks_callback(self) -> Dict[str, Any]:
+        """
+        Callback method for polling scheduler to process queued tasks.
+        This ensures task outputs are properly saved to src directory.
         
-        with PerformanceContext("queued_mode_session"):
-            try:
-                # Use the multi-queue processor for orchestrated task processing
-                processing_session = self.multi_queue_processor.process_queued_tasks(
-                    cancellation_check=lambda: not self.running
-                )
-                
-                # Convert session results to legacy format for compatibility
-                queued_results = {
-                    "step_results": {
-                        "session_id": processing_session.session_id,
-                        "processing_session": processing_session
-                    },
-                    "overall_success": processing_session.successful_tasks > 0,
-                    "successful_tickets": [],
-                    "failed_tickets": [],
-                    "summary": {}
-                }
-                
-                # Extract successful and failed ticket IDs from session results
-                for result in processing_session.processing_results:
-                    if result["status"] == "success":
-                        queued_results["successful_tickets"].append(result["task_id"])
-                    else:
-                        queued_results["failed_tickets"].append(result["task_id"])
-                
-                # Build summary
-                queued_results["summary"] = {
+        Returns:
+            Dictionary with processing results
+        """
+        try:
+            # Use the multi-queue processor for orchestrated task processing
+            processing_session = self.multi_queue_processor.process_queued_tasks(
+                cancellation_check=lambda: not self.running
+            )
+            
+            # Build results in expected format for polling scheduler
+            result = {
+                "step_results": {
+                    "session_id": processing_session.session_id,
+                    "processing_session": processing_session
+                },
+                "overall_success": processing_session.successful_tasks > 0,
+                "successful_tickets": [],
+                "failed_tickets": [],
+                "summary": {
                     "message": f"Multi-queue processing completed: {processing_session.successful_tasks} successful, {processing_session.failed_tasks} failed",
                     "total_tickets": processing_session.total_tasks,
                     "successful_tickets": processing_session.successful_tasks,
                     "failed_tickets": processing_session.failed_tasks,
                     "success_rate": (processing_session.successful_tasks / processing_session.total_tasks * 100) if processing_session.total_tasks > 0 else 0
                 }
-                
-                # Log component statistics using the enhanced multi-queue processor
+            }
+            
+            # Extract ticket IDs for tracking
+            for processing_result in processing_session.processing_results:
+                if processing_result["status"] == "success":
+                    result["successful_tickets"].append(processing_result["task_id"])
+                else:
+                    result["failed_tickets"].append(processing_result["task_id"])
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Queued task processing callback failed: {e}")
+            return {
+                "step_results": {},
+                "overall_success": False,
+                "successful_tickets": [],
+                "failed_tickets": [],
+                "summary": {
+                    "message": f"Multi-queue processing failed: {str(e)}",
+                    "total_tickets": 0,
+                    "successful_tickets": 0,
+                    "failed_tickets": 0,
+                    "error": str(e)
+                }
+            }
+    
+    def run_queued_mode(self):
+        """Run the queued mode with continuous polling scheduler"""
+        logger.info("🚀 Starting enhanced queued mode with continuous polling scheduler...")
+        
+        with PerformanceContext("queued_mode_session"):
+            try:
+                # Check if continuous polling is enabled
+                if config_manager.get_enable_continuous_polling():
+                    logger.info("🕒 Continuous polling enabled - starting polling scheduler...")
+                    
+                    # Setup signal handlers for graceful shutdown
+                    signal.signal(signal.SIGINT, self.signal_handler)
+                    signal.signal(signal.SIGTERM, self.signal_handler)
+                    
+                    # Start the polling scheduler
+                    if self.polling_scheduler.start():
+                        logger.info("✅ Polling scheduler started successfully")
+                        
+                        # Keep main thread alive while polling scheduler runs
+                        try:
+                            while self.running and self.polling_scheduler.is_running():
+                                time.sleep(1.0)
+                        except KeyboardInterrupt:
+                            logger.info("⏹️ Keyboard interrupt received")
+                        
+                        # Stop the polling scheduler
+                        logger.info("⏹️ Stopping polling scheduler...")
+                        self.polling_scheduler.stop()
+                        
+                        # Get final metrics
+                        metrics = self.polling_scheduler.get_metrics()
+                        logger.info("📊 Final Polling Scheduler Metrics:")
+                        logger.info(f"   🔄 Total polls: {metrics['total_polls']}")
+                        logger.info(f"   ✅ Successful polls: {metrics['successful_polls']}")
+                        logger.info(f"   ❌ Failed polls: {metrics['failed_polls']}")
+                        logger.info(f"   📋 Tasks processed: {metrics['tasks_processed']}")
+                        logger.info(f"   📊 Success rate: {metrics['success_rate']:.1f}%")
+                        logger.info(f"   ⏱️ Average poll duration: {metrics['average_poll_duration']:.2f}s")
+                        
+                        return {
+                            "step_results": {"polling_metrics": metrics},
+                            "overall_success": metrics['successful_polls'] > 0,
+                            "successful_tickets": [],
+                            "failed_tickets": [],
+                            "summary": {
+                                "message": f"Continuous polling completed: {metrics['successful_polls']} successful polls, {metrics['tasks_processed']} tasks processed",
+                                "total_polls": metrics['total_polls'],
+                                "successful_polls": metrics['successful_polls'],
+                                "failed_polls": metrics['failed_polls'],
+                                "tasks_processed": metrics['tasks_processed'],
+                                "success_rate": metrics['success_rate']
+                            }
+                        }
+                    else:
+                        logger.error("❌ Failed to start polling scheduler")
+                        return self._get_failed_result("Failed to start polling scheduler")
+                        
+                else:
+                    logger.info("🔄 Continuous polling disabled - running single processing cycle...")
+                    # Single processing cycle when continuous polling is disabled
+                    return self._process_queued_tasks_callback()
+                    
+            except Exception as e:
+                logger.error(f"❌ Queued mode failed with error: {e}")
+                return self._get_failed_result(str(e))
+            finally:
+                # Log component statistics
                 self._log_enhanced_statistics()
                 
                 # Log comprehensive performance summary
                 log_performance_summary()
-                
-                return queued_results
-                
-            except Exception as e:
-                logger.error(f"❌ Multi-queue task processing failed with error: {e}")
-                return {
-                    "step_results": {},
-                    "overall_success": False,
-                    "successful_tickets": [],
-                    "failed_tickets": [],
-                    "summary": {
-                        "message": f"Multi-queue processing failed: {str(e)}",
-                        "total_tickets": 0,
-                        "successful_tickets": 0,
-                        "failed_tickets": 0,
-                        "error": str(e)
-                    }
-                }
+    
+    def _get_failed_result(self, error_message: str) -> Dict[str, Any]:
+        """Helper method to return consistent failure result format."""
+        return {
+            "step_results": {},
+            "overall_success": False,
+            "successful_tickets": [],
+            "failed_tickets": [],
+            "summary": {
+                "message": f"Queued mode failed: {error_message}",
+                "total_tickets": 0,
+                "successful_tickets": 0,
+                "failed_tickets": 0,
+                "error": error_message
+            }
+        }
     
     def _log_enhanced_statistics(self):
         """Log enhanced statistics from all components using multi-queue processor."""
