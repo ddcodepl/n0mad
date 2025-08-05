@@ -68,6 +68,26 @@ class GlobalConfigManager:
             'description': 'Maximum number of concurrent tasks to process',
             'default': '3',
             'required': False
+        },
+        'NOMAD_COMMIT_VALIDATION_ENABLED': {
+            'description': 'Enable checkbox validation for task status transitions',
+            'default': 'true',
+            'required': False
+        },
+        'NOMAD_COMMIT_CHECKBOX_NAME': {
+            'description': 'Name of the commit checkbox property in Notion',
+            'default': 'Commit',
+            'required': False
+        },
+        'NOMAD_VALIDATION_CACHE_TTL_MINUTES': {
+            'description': 'Cache time-to-live for checkbox validations in minutes',
+            'default': '5',
+            'required': False
+        },
+        'NOMAD_VALIDATION_STRICT_MODE': {
+            'description': 'Fail transitions if checkbox not found (vs. warn and allow)',
+            'default': 'false',
+            'required': False
         }
     }
     
@@ -513,6 +533,38 @@ class GlobalConfigManager:
                     available_providers.append(provider)
         
         return available_providers
+    
+    def get_validation_config(self) -> Dict[str, Any]:
+        """
+        Get validation service configuration.
+        
+        Returns:
+            Dictionary with validation configuration
+        """
+        def str_to_bool(value: str) -> bool:
+            """Convert string to boolean."""
+            if isinstance(value, bool):
+                return value
+            return str(value).lower() in ('true', '1', 'yes', 'on', 'enabled')
+        
+        def str_to_int(value: str, default: int) -> int:
+            """Convert string to integer with fallback."""
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                return default
+        
+        return {
+            'enabled': str_to_bool(self.get('NOMAD_COMMIT_VALIDATION_ENABLED', 'true')),
+            'checkbox_name': self.get('NOMAD_COMMIT_CHECKBOX_NAME', 'Commit'),
+            'cache_ttl_minutes': str_to_int(self.get('NOMAD_VALIDATION_CACHE_TTL_MINUTES', '5'), 5),
+            'strict_mode': str_to_bool(self.get('NOMAD_VALIDATION_STRICT_MODE', 'false')),
+            'checkbox_names': [
+                self.get('NOMAD_COMMIT_CHECKBOX_NAME', 'Commit'),
+                "commit", "Ready to commit", "Can commit", 
+                "Ready to Commit", "Commit Ready", "Commit?"
+            ]
+        }
 
 # Global instance for easy access
 global_config = None

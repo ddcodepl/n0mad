@@ -547,41 +547,92 @@ IMPORTANT: You have full permissions to modify any file. Implement actual workin
             
             # Create summary directory
             summary_dir = self.project_root / "src" / "tasks" / "summary"
-            summary_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                summary_dir.mkdir(parents=True, exist_ok=True)
+                logger.debug(f"📁 Created summary directory: {summary_dir}")
+            except PermissionError as e:
+                logger.error(f"❌ Permission denied creating summary directory: {e}")
+                return
+            except Exception as e:
+                logger.error(f"❌ Failed to create summary directory: {e}")
+                return
             
             # Generate summary file path
             summary_file = summary_dir / f"{ticket_id}.md"
             
             logger.info(f"📝 Generating task summary: {summary_file}")
             
-            # Get completed tasks information
+            # Get completed tasks information (with improved error handling)
             completed_tasks = self._get_completed_tasks_info()
             
             # Generate summary content
-            summary_content = self._create_summary_content(task, completed_tasks)
+            try:
+                summary_content = self._create_summary_content(task, completed_tasks)
+            except Exception as e:
+                logger.error(f"❌ Failed to create summary content: {e}")
+                # Create a minimal summary as fallback
+                summary_content = f"""# Task Summary - {ticket_id}
+
+## Task Information
+- **Ticket ID**: {ticket_id}
+- **Title**: {title}
+- **Status**: ✅ Completed
+- **Processing Method**: Simple Queued Processor
+
+## Note
+An error occurred while generating detailed summary content: {e}
+
+The task was processed successfully despite this summary generation issue.
+"""
             
             # Write summary file
-            with open(summary_file, 'w', encoding='utf-8') as f:
-                f.write(summary_content)
-            
-            logger.info(f"✅ Task summary generated: {summary_file}")
+            try:
+                with open(summary_file, 'w', encoding='utf-8') as f:
+                    f.write(summary_content)
+                logger.info(f"✅ Task summary generated: {summary_file} ({len(summary_content)} characters)")
+            except PermissionError as e:
+                logger.error(f"❌ Permission denied writing summary file: {e}")
+            except Exception as e:
+                logger.error(f"❌ Failed to write summary file: {e}")
             
         except Exception as e:
             logger.error(f"❌ Failed to generate task summary: {e}")
+            import traceback
+            logger.debug(f"Summary generation traceback: {traceback.format_exc()}")
     
     def _get_completed_tasks_info(self) -> List[Dict[str, Any]]:
         """Get information about all completed tasks from Task Master."""
         try:
-            with open(self.taskmaster_tasks_file, 'r') as f:
+            if not self.taskmaster_tasks_file.exists():
+                logger.warning(f"⚠️ TaskMaster tasks file not found: {self.taskmaster_tasks_file}")
+                logger.info("📝 This is normal for first run or test environments")
+                return []
+            
+            with open(self.taskmaster_tasks_file, 'r', encoding='utf-8') as f:
                 tasks_data = json.load(f)
             
             completed_tasks = []
-            for task in tasks_data.get("master", {}).get("tasks", []):
+            master_data = tasks_data.get("master", {})
+            
+            if not master_data:
+                logger.warning("⚠️ No 'master' section found in TaskMaster tasks file")
+                return []
+            
+            tasks_list = master_data.get("tasks", [])
+            if not tasks_list:
+                logger.info("📋 No tasks found in TaskMaster - this may be a fresh installation")
+                return []
+            
+            for task in tasks_list:
                 if task.get("status") == "done":
                     completed_tasks.append(task)
             
+            logger.info(f"📊 Found {len(completed_tasks)} completed tasks out of {len(tasks_list)} total tasks")
             return completed_tasks
             
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Invalid JSON in TaskMaster tasks file: {e}")
+            return []
         except Exception as e:
             logger.error(f"❌ Failed to get completed tasks info: {e}")
             return []
@@ -619,17 +670,27 @@ This task was processed using the automated Task Master AI system with Claude Co
 ### Completed Tasks ({len(completed_tasks)} total)
 """
         
-        # Add completed tasks information
-        for i, task in enumerate(completed_tasks, 1):
-            task_title = task.get("title", "Unknown")
-            task_desc = task.get("description", "No description")
-            task_id = task.get("id", "Unknown")
-            
-            content += f"""
+        if completed_tasks:
+            # Add completed tasks information
+            for i, task in enumerate(completed_tasks, 1):
+                task_title = task.get("title", "Unknown")
+                task_desc = task.get("description", "No description")
+                task_id = task.get("id", "Unknown")
+                
+                content += f"""
 #### {i}. {task_title}
 - **Task ID**: {task_id}
 - **Description**: {task_desc}
 - **Status**: ✅ Completed
+"""
+        else:
+            content += """
+*No completed tasks found in TaskMaster database. This may be due to:*
+- First-time setup where TaskMaster hasn't been initialized yet
+- TaskMaster tasks file is missing or empty
+- Tasks are tracked elsewhere or manually
+
+The task was still processed successfully using the Simple Queued Processor.
 """
         
         # Add file changes section
