@@ -16,6 +16,7 @@ core/managers/branch_feedback_manager.py
 core/managers/branch_integration_manager.py
 core/managers/enhanced_status_transition_manager.py
 core/managers/feedback_manager.py
+core/managers/notification_manager.py
 core/managers/status_transition_manager.py
 core/managers/task_file_manager.py
 core/operations/__init__.py
@@ -32,6 +33,8 @@ core/services/__init__.py
 core/services/branch_service.py
 core/services/commit_message_service.py
 core/services/git_commit_service.py
+core/services/slack_message_builder.py
+core/services/slack_service.py
 core/services/task_validation_service.py
 entry/__init__.py
 entry/main.py
@@ -43,6 +46,7 @@ tests/test_config.py
 tests/test_config_api_keys.py
 tests/test_config_integration.py
 tests/test_config_polling.py
+tests/test_config_slack.py
 tests/test_database_operations.py
 tests/test_enhanced_status_transition_manager.py
 tests/test_enhanced_status_transition_manager_simple.py
@@ -59,6 +63,7 @@ tests/test_polling_strategies.py
 tests/test_provider_router.py
 tests/test_security_validator.py
 tests/test_simple_queued.py
+tests/test_slack_integration.py
 tests/test_status_transitions.py
 tests/test_summary_generation.py
 tests/test_task_file_manager.py
@@ -80,5 +85,7 @@ utils/polling_scheduler.py
 utils/polling_strategies.py
 utils/provider_router.py
 utils/security_validator.py
+utils/slack_config.py
+utils/slack_security.py
 utils/task_locking.py
 utils/task_status.py

@@ -44,6 +44,13 @@ class SimpleQueuedProcessor:
         self.task_dir = self.project_root / "tasks" / "tasks"
         self.taskmaster_tasks_file = self.project_root / ".taskmaster" / "tasks" / "tasks.json"
         
+        # Configure summary directory using TASKS_DIR env var or default to ./tasks
+        tasks_dir = os.getenv("TASKS_DIR", "tasks")
+        if os.path.isabs(tasks_dir):
+            self.summary_dir = Path(tasks_dir) / "summary"
+        else:
+            self.summary_dir = self.project_root / tasks_dir / "summary"
+        
         # Initialize components
         self.notion_client = NotionClientWrapper()
         self.db_ops = DatabaseOperations(self.notion_client)
@@ -51,11 +58,12 @@ class SimpleQueuedProcessor:
         
         # Ensure critical directories exist
         self.taskmaster_tasks_file.parent.mkdir(parents=True, exist_ok=True)
-        (self.project_root / "src" / "tasks" / "summary").mkdir(parents=True, exist_ok=True)
+        self.summary_dir.mkdir(parents=True, exist_ok=True)
         
         logger.info(f"🎯 SimpleQueuedProcessor initialized")
         logger.info(f"   📁 Task directory: {self.task_dir}")
         logger.info(f"   📋 TaskMaster file: {self.taskmaster_tasks_file}")
+        logger.info(f"   📄 Summary directory: {self.summary_dir}")
     
     def process_queued_tasks(self) -> bool:
         """
@@ -545,11 +553,10 @@ IMPORTANT: You have full permissions to modify any file. Implement actual workin
                 logger.warning("⚠️ Cannot generate summary - missing ticket ID")
                 return
             
-            # Create summary directory
-            summary_dir = self.project_root / "src" / "tasks" / "summary"
+            # Use the configured summary directory
             try:
-                summary_dir.mkdir(parents=True, exist_ok=True)
-                logger.debug(f"📁 Created summary directory: {summary_dir}")
+                self.summary_dir.mkdir(parents=True, exist_ok=True)
+                logger.debug(f"📁 Using summary directory: {self.summary_dir}")
             except PermissionError as e:
                 logger.error(f"❌ Permission denied creating summary directory: {e}")
                 return
@@ -558,7 +565,7 @@ IMPORTANT: You have full permissions to modify any file. Implement actual workin
                 return
             
             # Generate summary file path
-            summary_file = summary_dir / f"{ticket_id}.md"
+            summary_file = self.summary_dir / f"{ticket_id}.md"
             
             logger.info(f"📝 Generating task summary: {summary_file}")
             
