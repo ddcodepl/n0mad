@@ -44,6 +44,10 @@ class MultiStatusProcessor:
         """
         self.project_root = Path(project_root)
         
+        # Track recently processed tasks to avoid immediate reprocessing
+        self._recently_processed_tasks = set()
+        self._last_process_time = {}
+        
         # Initialize core components
         self.notion_client = NotionClientWrapper()
         self.db_ops = DatabaseOperations(self.notion_client)
@@ -334,7 +338,12 @@ class MultiStatusProcessor:
                     
                     if result.get("status") == "completed":
                         successful += 1
-                        logger.info(f"✅ Refined task: {task.get('id', 'unknown')}")
+                        task_id = task.get('id', 'unknown')
+                        logger.info(f"✅ Refined task: {task_id}")
+                        
+                        # Track this task to prevent immediate reprocessing when it moves to REFINED status
+                        self._last_process_time[task_id] = time.time()
+                        self._recently_processed_tasks.add(task_id)
                     else:
                         failed += 1
                         logger.error(f"❌ Failed to refine task: {task.get('id', 'unknown')}")
@@ -754,11 +763,43 @@ class MultiStatusProcessor:
             # Get tasks with 'Refined' status
             refined_tasks = self.db_ops.get_task_by_status(TaskStatus.REFINED)
             
+            # Filter out recently processed tasks to avoid immediate reprocessing
+            current_time = time.time()
+            cooldown_period = 120  # 2 minutes cooldown
+            
+            # Clean up old tracking entries (older than 1 hour)
+            cleanup_threshold = current_time - 3600  # 1 hour
+            expired_task_ids = [task_id for task_id, last_time in self._last_process_time.items() 
+                              if last_time < cleanup_threshold]
+            for task_id in expired_task_ids:
+                self._last_process_time.pop(task_id, None)
+                self._recently_processed_tasks.discard(task_id)
+            
+            if expired_task_ids:
+                logger.debug(f"🧹 Cleaned up {len(expired_task_ids)} expired task tracking entries")
+            
+            filtered_tasks = []
+            for task in refined_tasks:
+                task_id = task.get("id", "unknown")
+                last_processed = self._last_process_time.get(task_id, 0)
+                
+                if current_time - last_processed > cooldown_period:
+                    filtered_tasks.append(task)
+                else:
+                    remaining_cooldown = int(cooldown_period - (current_time - last_processed))
+                    logger.info(f"⏳ Skipping recently processed task {task_id} (cooldown: {remaining_cooldown}s remaining)")
+            
+            refined_tasks = filtered_tasks
+            
             if not refined_tasks:
-                logger.info("ℹ️  No tasks found with 'Refined' status")
+                original_count = len(self.db_ops.get_task_by_status(TaskStatus.REFINED))
+                if original_count > 0:
+                    logger.info(f"ℹ️  Found {original_count} refined tasks, but all are in cooldown period")
+                else:
+                    logger.info("ℹ️  No tasks found with 'Refined' status")
                 return {
                     "success": True,
-                    "message": "No refined tasks found",
+                    "message": "No refined tasks to process (all in cooldown)" if original_count > 0 else "No refined tasks found",
                     "stats": {"processed": 0, "successful": 0, "failed": 0}
                 }
             
@@ -785,9 +826,12 @@ class MultiStatusProcessor:
                     if result['success']:
                         # Now trigger the prepare workflow by calling the prepare processor
                         # But we need to wait a moment for the status change to propagate
-                        import time
                         time.sleep(1)
                         successful_tasks += 1
+                        
+                        # Track this task to prevent immediate reprocessing
+                        self._last_process_time[task_id] = time.time()
+                        self._recently_processed_tasks.add(task_id)
                     else:
                         failed_tasks += 1
                     
@@ -960,11 +1004,19 @@ class MultiStatusProcessor:
                         "count": count,
                         "reason": "High priority - needs immediate attention"
                     })
-                elif status in [TaskStatus.TO_REFINE, TaskStatus.REFINED, TaskStatus.PREPARE_TASKS, TaskStatus.PREPARING_TASKS]:
+                elif status in [TaskStatus.TO_REFINE, TaskStatus.PREPARE_TASKS, TaskStatus.PREPARING_TASKS]:
                     recommendations["priority_statuses"].append({
                         "status": status.value,
                         "count": count,
                         "reason": "Ready for processing" if status != TaskStatus.PREPARING_TASKS else "Needs completion check"
+                    })
+                elif status == TaskStatus.REFINED:
+                    # Refined tasks should be processed to move to next workflow stage
+                    # but with logic to prevent immediate reprocessing of the same task
+                    recommendations["priority_statuses"].append({
+                        "status": status.value,
+                        "count": count,
+                        "reason": "Ready for workflow progression"
                     })
                 else:
                     recommendations["optional_statuses"].append({

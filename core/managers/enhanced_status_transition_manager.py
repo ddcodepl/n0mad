@@ -40,6 +40,14 @@ from utils.global_config import get_global_config
 
 logger = get_logger(__name__)
 
+# Import notification system (with fallback if not available)
+try:
+    from core.managers.notification_manager import get_notification_manager
+    NOTIFICATIONS_AVAILABLE = True
+except ImportError:
+    NOTIFICATIONS_AVAILABLE = False
+    logger.debug("Notification system not available")
+
 
 class EnhancedTransitionResult(str, Enum):
     """Extended transition results including validation and commit states."""
@@ -90,7 +98,8 @@ class EnhancedStatusTransitionManager(StatusTransitionManager):
                  notion_client: NotionClientWrapper,
                  project_root: Optional[str] = None,
                  enable_validation: bool = True,
-                 enable_commits: bool = True):
+                 enable_commits: bool = True,
+                 enable_notifications: bool = True):
         """
         Initialize the enhanced status transition manager.
         
@@ -99,6 +108,7 @@ class EnhancedStatusTransitionManager(StatusTransitionManager):
             project_root: Project root directory for git operations
             enable_validation: Whether to enable checkbox validation
             enable_commits: Whether to enable automatic commits
+            enable_notifications: Whether to enable Slack notifications
         """
         # Initialize base class
         super().__init__(notion_client)
@@ -123,9 +133,21 @@ class EnhancedStatusTransitionManager(StatusTransitionManager):
             self.commit_message_generator = CommitMessageGenerator()
             self.git_commit_service = GitCommitService(project_root=project_root)
         
+        # Initialize notification manager
+        self.notification_manager = None
+        if enable_notifications and NOTIFICATIONS_AVAILABLE:
+            try:
+                self.notification_manager = get_notification_manager()
+                self.notification_manager.start()  # Start the processing thread
+                logger.info("✅ Notification system initialized")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to initialize notification system: {e}")
+                self.notification_manager = None
+        
         # Configuration
         self.enable_validation = enable_validation and self.validation_service is not None
         self.enable_commits = enable_commits and self.git_commit_service is not None
+        self.enable_notifications = enable_notifications and self.notification_manager is not None
         self.project_root = project_root
         
         # Enhanced tracking
@@ -135,6 +157,7 @@ class EnhancedStatusTransitionManager(StatusTransitionManager):
         logger.info(f"🔧 EnhancedStatusTransitionManager initialized")
         logger.info(f"   🔒 Validation: {'enabled' if self.enable_validation else 'disabled'}")
         logger.info(f"   📝 Commits: {'enabled' if self.enable_commits else 'disabled'}")
+        logger.info(f"   🔔 Notifications: {'enabled' if self.enable_notifications else 'disabled'}")
     
     def transition_status_enhanced(self, 
                                   page_id: str, 
@@ -454,6 +477,26 @@ class EnhancedStatusTransitionManager(StatusTransitionManager):
         )
         self._add_to_history(base_transition)
         
+        # Send notification for successful transitions
+        if (self.enable_notifications and 
+            transition.result == EnhancedTransitionResult.SUCCESS):
+            try:
+                self.notification_manager.notify_status_change(
+                    task_id=transition.page_id,
+                    task_title=transition.task_title or "Task",
+                    from_status=transition.from_status,
+                    to_status=transition.to_status,
+                    ticket_id=transition.ticket_id,
+                    metadata={
+                        "commit_hash": transition.commit_hash,
+                        "validation_result": str(transition.validation_result) if transition.validation_result else None,
+                        "transition_timestamp": transition.timestamp.isoformat()
+                    }
+                )
+                logger.debug(f"🔔 Notification sent for transition: {transition.page_id}")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to send notification for transition: {e}")
+        
         return transition
     
     def get_enhanced_transition_history(self, 
@@ -543,6 +586,10 @@ class EnhancedStatusTransitionManager(StatusTransitionManager):
         """Check if commits are enabled."""
         return self.enable_commits
     
+    def is_notification_enabled(self) -> bool:
+        """Check if notifications are enabled."""
+        return self.enable_notifications
+    
     def configure_validation(self, enabled: bool):
         """
         Enable or disable validation.
@@ -564,3 +611,35 @@ class EnhancedStatusTransitionManager(StatusTransitionManager):
         """
         self.enable_commits = enabled and self.git_commit_service is not None
         logger.info(f"🔧 Commits {'enabled' if self.enable_commits else 'disabled'}")
+    
+    def configure_notifications(self, enabled: bool):
+        """
+        Enable or disable notifications.
+        
+        Args:
+            enabled: Whether to enable notifications
+        """
+        self.enable_notifications = enabled and self.notification_manager is not None
+        logger.info(f"🔧 Notifications {'enabled' if self.enable_notifications else 'disabled'}")
+    
+    def get_notification_statistics(self) -> Optional[Dict[str, Any]]:
+        """
+        Get notification system statistics.
+        
+        Returns:
+            Dictionary with notification statistics or None if not available
+        """
+        if self.notification_manager:
+            return self.notification_manager.get_statistics()
+        return None
+    
+    def test_notification_system(self) -> bool:
+        """
+        Test the notification system.
+        
+        Returns:
+            True if test was successful
+        """
+        if self.notification_manager:
+            return self.notification_manager.test_notification("Test from EnhancedStatusTransitionManager")
+        return False

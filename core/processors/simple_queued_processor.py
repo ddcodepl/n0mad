@@ -200,7 +200,7 @@ class SimpleQueuedProcessor:
                 return False
             
             # Step 4: Execute Claude Code command
-            claude_success = self._execute_claude_command()
+            claude_success = self._execute_claude_command(task)
             
             # Step 5: Update final status
             if claude_success:
@@ -352,7 +352,7 @@ class SimpleQueuedProcessor:
         
         return changed_files
     
-    def _execute_claude_command(self) -> bool:
+    def _execute_claude_command(self, task: Dict[str, Any]) -> bool:
         """
         Execute Claude Code command to process all tasks.
         
