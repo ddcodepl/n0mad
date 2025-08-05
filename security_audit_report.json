@@ -1,0 +1,41 @@
+{
+  "timestamp": 1754353745,
+  "audit_version": "1.0",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "file_permissions",
+      "title": "Home directory is world-readable",
+      "description": "Directory /Users/damian/.nomad has world-read permissions (drwxr-xr-x)",
+      "recommendation": "Consider restricting permissions on /Users/damian/.nomad"
+    },
+    {
+      "severity": "medium",
+      "category": "file_permissions",
+      "title": "Tasks directory is world-readable",
+      "description": "Directory /Users/damian/.nomad/tasks has world-read permissions (drwxr-xr-x)",
+      "recommendation": "Consider restricting permissions on /Users/damian/.nomad/tasks"
+    },
+    {
+      "severity": "high",
+      "category": "credential_leakage",
+      "title": "Potential credentials found in .env.example",
+      "description": "Found 1 potential credential patterns in /Users/damian/Web/ddcode/nomad/.env.example",
+      "recommendation": "Review and remove any actual credentials from /Users/damian/Web/ddcode/nomad/.env.example"
+    }
+  ],
+  "recommendations": [
+    "Consider restricting permissions on /Users/damian/.nomad",
+    "Consider restricting permissions on /Users/damian/.nomad/tasks",
+    "Review and remove any actual credentials from /Users/damian/Web/ddcode/nomad/.env.example"
+  ],
+  "summary": {
+    "total_findings": 3,
+    "severity_breakdown": {
+      "medium": 2,
+      "high": 1
+    },
+    "security_score": 75,
+    "recommendations_count": 3
+  }
+}

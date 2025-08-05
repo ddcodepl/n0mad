@@ -4,20 +4,28 @@ import threading
 import signal
 from typing import Optional, Dict, Any
 from openai import OpenAI
-from dotenv import load_dotenv
 import time
 from utils.config import DEFAULT_MODEL, REFINEMENT_PROMPT
 from clients.openrouter_client import OpenRouterClient, OpenRouterError
 from utils.model_parser import ModelParser, ValidationError
-
-
-load_dotenv()
+from utils.global_config import get_global_config
 
 logger = logging.getLogger(__name__)
 
 
 class OpenAIClient:
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+        """
+        Initialize OpenAI client with secure credential management.
+        
+        Args:
+            api_key: API key (if None, uses global config)
+            model: Model to use (if None, uses default)
+        """
+        # Use global configuration for secure credential management
+        global_config = get_global_config(strict_validation=False)
+        self.security_manager = global_config.security_manager
+        
         self.model = model or DEFAULT_MODEL
         self.max_retries = 3
         self.retry_delay = 1
@@ -46,30 +54,76 @@ class OpenAIClient:
         self._initialize_client(api_key)
     
     def _initialize_client(self, api_key: Optional[str] = None):
-        """Initialize the appropriate client based on provider"""
+        """Initialize the appropriate client based on provider with secure credential management"""
+        global_config = get_global_config(strict_validation=False)
+        
         if ModelParser.is_openai_provider(self.provider):
             # Use direct OpenAI client for OpenAI models
-            self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+            self.api_key = api_key or global_config.get("OPENAI_API_KEY")
             if not self.api_key:
-                raise ValueError("OpenAI API key not found. Set OPENAI_API_KEY environment variable.")
-            self.client = OpenAI(api_key=self.api_key)
-            self.openrouter_client = None
-            logger.info(f"Initialized OpenAI client for provider: {self.provider}")
+                raise ValueError(
+                    "OpenAI API key not found. Set OPENAI_API_KEY environment variable or configure it globally. "
+                    "Run 'nomad --config-help' for setup instructions."
+                )
+            
+            # Validate API key format
+            is_valid, issues = self.security_manager.validate_api_key_format('openai', self.api_key)
+            if not is_valid:
+                logger.warning(f"⚠️ OpenAI API key validation issues: {'; '.join(issues)}")
+            
+            try:
+                self.client = OpenAI(api_key=self.api_key)
+                self.openrouter_client = None
+                
+                # Log success with masked key
+                masked_key = self.security_manager.mask_sensitive_value(self.api_key)
+                logger.info(f"✅ Initialized OpenAI client for provider: {self.provider} (key: {masked_key})")
+                
+            except Exception as e:
+                # Ensure no sensitive data is logged in errors
+                error_msg = str(e)
+                if self.api_key in error_msg:
+                    error_msg = error_msg.replace(self.api_key, self.security_manager.mask_sensitive_value(self.api_key))
+                
+                logger.error(f"❌ Failed to initialize OpenAI client: {error_msg}")
+                raise ValueError(f"OpenAI client initialization failed. Check your credentials. {error_msg}") from e
+                
         else:
             # Use dedicated OpenRouter client for all other providers
-            openrouter_api_key = api_key or os.getenv("OPENROUTER_API_KEY")
+            openrouter_api_key = api_key or global_config.get("OPENROUTER_API_KEY")
             if not openrouter_api_key:
-                raise ValueError("OpenRouter API key not found. Set OPENROUTER_API_KEY environment variable.")
+                raise ValueError(
+                    "OpenRouter API key not found. Set OPENROUTER_API_KEY environment variable or configure it globally. "
+                    "Run 'nomad --config-help' for setup instructions."
+                )
             
-            self.openrouter_client = OpenRouterClient(
-                api_key=openrouter_api_key,
-                timeout=120,
-                max_retries=self.max_retries,
-                retry_delay=self.retry_delay
-            )
-            self.client = None  # Not using standard OpenAI client
-            self.api_key = openrouter_api_key
-            logger.info(f"Initialized OpenRouter client for provider: {self.provider}")
+            # Validate API key format
+            is_valid, issues = self.security_manager.validate_api_key_format('openrouter', openrouter_api_key)
+            if not is_valid:
+                logger.warning(f"⚠️ OpenRouter API key validation issues: {'; '.join(issues)}")
+            
+            try:
+                self.openrouter_client = OpenRouterClient(
+                    api_key=openrouter_api_key,
+                    timeout=120,
+                    max_retries=self.max_retries,
+                    retry_delay=self.retry_delay
+                )
+                self.client = None  # Not using standard OpenAI client
+                self.api_key = openrouter_api_key
+                
+                # Log success with masked key
+                masked_key = self.security_manager.mask_sensitive_value(openrouter_api_key)
+                logger.info(f"✅ Initialized OpenRouter client for provider: {self.provider} (key: {masked_key})")
+                
+            except Exception as e:
+                # Ensure no sensitive data is logged in errors
+                error_msg = str(e)
+                if openrouter_api_key in error_msg:
+                    error_msg = error_msg.replace(openrouter_api_key, self.security_manager.mask_sensitive_value(openrouter_api_key))
+                
+                logger.error(f"❌ Failed to initialize OpenRouter client: {error_msg}")
+                raise ValueError(f"OpenRouter client initialization failed. Check your credentials. {error_msg}") from e
     
     def process_content(self, content: str, system_prompt: Optional[str] = None, shutdown_flag: callable = None, timeout: int = 120, ticket_context: Optional[Dict[str, Any]] = None) -> str:
         if system_prompt is None:

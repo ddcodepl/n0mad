@@ -4,34 +4,69 @@ import aiohttp
 import time
 from typing import Optional, Dict, Any, List
 from notion_client import Client
-from dotenv import load_dotenv
 from utils.task_status import TaskStatus
 from utils.logging_config import get_logger, log_section_header, log_subsection_header, log_key_value, log_list_items
-
-
-load_dotenv()
+from utils.global_config import get_global_config
+from utils.env_security import mask_sensitive_dict
 
 logger = get_logger(__name__)
 
 
 class NotionClientWrapper:
     def __init__(self, token: Optional[str] = None, database_id: Optional[str] = None, max_retries: int = 3):
-        self.token = token or os.getenv("NOTION_TOKEN")
-        if not self.token:
-            raise ValueError("Notion token not found. Set NOTION_TOKEN environment variable.")
+        """
+        Initialize Notion client with secure credential management.
         
-        self.database_id = database_id or os.getenv("NOTION_BOARD_DB")
+        Args:
+            token: Notion token (if None, uses global config)
+            database_id: Notion database ID (if None, uses global config)
+            max_retries: Maximum retry attempts for API calls
+        """
+        # Use global configuration for secure credential management
+        global_config = get_global_config(strict_validation=False)
+        
+        self.token = token or global_config.get("NOTION_TOKEN")
+        if not self.token:
+            raise ValueError(
+                "Notion token not found. Set NOTION_TOKEN environment variable or configure it globally. "
+                "Run 'nomad --config-help' for setup instructions."
+            )
+        
+        self.database_id = database_id or global_config.get("NOTION_BOARD_DB")
         if not self.database_id:
-            raise ValueError("Notion database ID not found. Set NOTION_BOARD_DB environment variable.")
+            raise ValueError(
+                "Notion database ID not found. Set NOTION_BOARD_DB environment variable or configure it globally. "
+                "Run 'nomad --config-help' for setup instructions."
+            )
+        
+        # Validate credentials using security manager
+        security_manager = global_config.security_manager
+        
+        # Validate Notion token format
+        if not security_manager.validate_notion_token(self.token):
+            logger.warning("⚠️ Notion token format appears invalid. Expected format: secret_...")
+        
+        # Validate database ID format
+        if not security_manager.validate_notion_database_id(self.database_id):
+            logger.warning("⚠️ Notion database ID format appears invalid. Expected: 32-character hex string")
         
         self.max_retries = max_retries
         
         try:
             self.client = Client(auth=self.token)
-            logger.info("✅ Notion client initialized successfully")
+            
+            # Log success with masked credentials
+            masked_token = security_manager.mask_sensitive_value(self.token)
+            logger.info(f"✅ Notion client initialized successfully (token: {masked_token})")
+            
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Notion client: {e}")
-            raise
+            # Ensure no sensitive data is logged in errors
+            error_msg = str(e)
+            if self.token in error_msg:
+                error_msg = error_msg.replace(self.token, security_manager.mask_sensitive_value(self.token))
+            
+            logger.error(f"❌ Failed to initialize Notion client: {error_msg}")
+            raise ValueError(f"Notion client initialization failed. Check your credentials. {error_msg}") from e
     
     def _retry_with_exponential_backoff(self, func, *args, **kwargs):
         """
@@ -842,6 +877,44 @@ class NotionClientWrapper:
                 logger.error(f"Fallback status update also failed: {fallback_error}")
                 raise
     
+    def update_page_property(self, page_id: str, property_name: str, property_value: str) -> Dict[str, Any]:
+        """
+        Update a specific page property with the given value.
+        
+        Args:
+            page_id: Notion page ID
+            property_name: Name of the property to update  
+            property_value: New value for the property
+            
+        Returns:
+            Updated page object
+        """
+        try:
+            logger.info(f"🔄 Updating property '{property_name}' for page {page_id[:8]}...")
+            
+            # For now, assume it's a rich_text property (like Feedback)
+            # This could be extended to handle other property types based on database schema
+            properties = {
+                property_name: {
+                    "rich_text": [
+                        {
+                            "type": "text",
+                            "text": {
+                                "content": property_value
+                            }
+                        }
+                    ]
+                }
+            }
+            
+            updated_page = self.update_page(page_id, properties)
+            logger.info(f"✅ Successfully updated property '{property_name}' for page {page_id[:8]}...")
+            return updated_page
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to update property '{property_name}' for page {page_id}: {e}")
+            raise
+    
     def get_page_content(self, page_id: str) -> str:
         try:
             blocks = self.client.blocks.children.list(block_id=page_id)
@@ -869,6 +942,33 @@ class NotionClientWrapper:
                     text_parts.append(text_obj["text"]["content"])
         
         return "".join(text_parts)
+    
+    def _extract_status_from_page(self, page: Dict[str, Any]) -> str:
+        """
+        Extract current status from a Notion page object.
+        
+        Args:
+            page: Notion page object
+            
+        Returns:
+            Current status string
+        """
+        try:
+            properties = page.get("properties", {})
+            status_prop = properties.get("Status", {})
+            
+            # Handle different status property types
+            if "status" in status_prop and status_prop["status"]:
+                return status_prop["status"]["name"]
+            elif "select" in status_prop and status_prop["select"]:
+                return status_prop["select"]["name"]
+            else:
+                logger.warning("⚠️ Could not extract status from page properties")
+                return "Unknown"
+                
+        except Exception as e:
+            logger.error(f"❌ Error extracting status from page: {e}")
+            return "Unknown"
     
     async def _delete_blocks_async(self, block_ids: List[str], headers: Dict[str, str], shutdown_flag: callable = None):
         """Asynchronously delete multiple blocks concurrently with rate limiting"""

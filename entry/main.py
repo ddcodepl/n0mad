@@ -4,6 +4,8 @@ Combined main application for Notion API integration
 Supports two modes:
 1. --refine: Process tasks with 'To Refine' status (original main.py functionality)
 2. --prepare: Process tasks with 'Prepare Tasks' status (original main_workflow.py functionality)
+
+Global installation support - can be run from any directory.
 """
 import os
 import sys
@@ -13,11 +15,31 @@ import logging
 import argparse
 import concurrent.futures
 from datetime import datetime
-from typing import List, Dict, Any
-from dotenv import load_dotenv
+from typing import List, Dict, Any, Optional
+from pathlib import Path
 
-# Add project root to Python path to enable imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+# Add project root to Python path to enable imports when running locally
+# For global installation, the package structure is already in sys.path
+if __name__ == "__main__":
+    # Only add path adjustment when running as script (not when globally installed)
+    project_root = os.path.dirname(os.path.dirname(__file__))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+# Initialize global configuration first
+from utils.global_config import initialize_global_config, get_global_config
+
+# Initialize global configuration for the working directory
+# Use non-strict validation during import to allow configuration commands to work
+try:
+    global_config = initialize_global_config(strict_validation=False)
+except ValueError as e:
+    print(f"Configuration error: {e}", file=sys.stderr)
+    print("Run 'nomad --config-help' for configuration assistance.", file=sys.stderr)
+    if __name__ == "__main__":
+        sys.exit(1)
+    else:
+        raise
 
 from clients.notion_wrapper import NotionClientWrapper
 from clients.openai_client import OpenAIClient
@@ -43,8 +65,6 @@ from utils.config import config_manager
 from core.processors.simple_queued_processor import SimpleQueuedProcessor
 from core.processors.multi_status_processor import MultiStatusProcessor
 
-load_dotenv()
-
 # Initialize enhanced logging with session files
 from utils.logging_config import setup_logging
 setup_logging(
@@ -60,7 +80,11 @@ class NotionDeveloper:
     def __init__(self, mode="refine"):
         self.mode = mode
         self.running = True
-        self.max_concurrent_tasks = int(os.getenv("MAX_CONCURRENT_TASKS", "3"))
+        
+        # Use global configuration for settings
+        self.global_config = get_global_config()
+        self.max_concurrent_tasks = int(self.global_config.get("NOMAD_MAX_CONCURRENT_TASKS", "3"))
+        
         self.stats = {
             "tasks_processed": 0,
             "tasks_failed": 0,
@@ -71,9 +95,20 @@ class NotionDeveloper:
         try:
             logger.info(f"Initializing Notion Developer application in {mode} mode...")
             
-            # Calculate project root consistently for both modes
-            # Task-master needs to run from project root where .taskmaster is located
-            self.project_root = os.path.dirname(os.path.dirname(__file__))  # Go up from entry to project root
+            # Initialize strict configuration for application execution
+            self.global_config = initialize_global_config(strict_validation=True)
+            
+            logger.info(f"Global config home: {self.global_config.get_home_directory()}")
+            logger.info(f"Tasks directory: {self.global_config.get_tasks_directory()}")
+            
+            # For global installation, use current working directory as project root
+            # unless we're in development mode
+            if self._is_development_mode():
+                self.project_root = os.path.dirname(os.path.dirname(__file__))
+                logger.info(f"Development mode - using project root: {self.project_root}")
+            else:
+                self.project_root = str(Path.cwd())
+                logger.info(f"Global mode - using working directory: {self.project_root}")
             
             # Initialize performance monitoring
             logger.info("📊 Initializing performance monitoring...")
@@ -113,6 +148,31 @@ class NotionDeveloper:
         except Exception as e:
             logger.error(f"Failed to initialize application: {e}")
             sys.exit(1)
+    
+    def _is_development_mode(self) -> bool:
+        """Check if we're running in development mode (not globally installed)."""
+        try:
+            # Check if we're running from a local development directory
+            current_file = Path(__file__).resolve()
+            
+            # Look for development indicators
+            parent_dirs = current_file.parents
+            for parent in parent_dirs:
+                # Check for common development indicators
+                dev_indicators = [
+                    parent / 'pyproject.toml',
+                    parent / 'setup.py',
+                    parent / '.git',
+                    parent / 'requirements.txt'
+                ]
+                
+                if any(indicator.exists() for indicator in dev_indicators):
+                    return True
+            
+            return False
+        except Exception:
+            # If we can't determine, assume global mode
+            return False
     
     def signal_handler(self, signum, frame):
         logger.info("Received shutdown signal. Gracefully stopping...")
@@ -762,16 +822,56 @@ class NotionDeveloper:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Notion API integration application",
-        epilog="Examples:\n  uv run main.py          # Continuous polling mode (multi-status)\n  uv run main.py --refine\n  uv run main.py --prepare\n  uv run main.py --queued\n  uv run main.py --multi",
+        description="Nomad - Notion API integration application with global installation support",
+        epilog="""Examples:
+  nomad                    # Continuous polling mode (multi-status)
+  nomad --refine          # Process 'To Refine' status tasks
+  nomad --prepare         # Process 'Prepare Tasks' status
+  nomad --queued          # Process 'Queued to run' status tasks
+  nomad --multi           # Multi-status mode
+  nomad --config-help     # Show configuration help
+  nomad --config-create   # Create configuration template
+  nomad --status          # Show configuration status""",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
+    
+    # Mode selection arguments
     parser.add_argument("--refine", action="store_true", help="Run in refine mode (process 'To Refine' status tasks)")
     parser.add_argument("--prepare", action="store_true", help="Run in prepare mode (process 'Prepare Tasks' status)")
     parser.add_argument("--queued", action="store_true", help="Run in queued mode (process 'Queued to run' status tasks only)")
     parser.add_argument("--multi", action="store_true", help="Run in multi-status mode (process multiple status types)")
     
+    # Configuration and management arguments
+    parser.add_argument("--config-help", action="store_true", help="Show configuration help and requirements")
+    parser.add_argument("--config-create", action="store_true", help="Create a configuration template file")
+    parser.add_argument("--config-status", action="store_true", help="Show current configuration status")
+    parser.add_argument("--health-check", action="store_true", help="Perform comprehensive health check")
+    parser.add_argument("--working-dir", help="Set working directory (default: current directory)")
+    parser.add_argument("--version", action="version", version="Nomad v0.2.0 - Notion Automation Tool")
+    
     args = parser.parse_args()
+    
+    # Handle configuration management commands first
+    if args.config_help:
+        show_config_help()
+        return
+    
+    if args.config_create:
+        create_config_template(args.working_dir)
+        return
+    
+    if args.config_status:
+        show_config_status(args.working_dir)
+        return
+    
+    if args.health_check:
+        perform_health_check(args.working_dir)
+        return
+    
+    # Set working directory if specified
+    if args.working_dir:
+        os.chdir(args.working_dir)
+        print(f"Changed working directory to: {args.working_dir}")
     
     # Determine mode
     mode_count = sum([args.refine, args.prepare, args.queued, args.multi])
@@ -804,6 +904,300 @@ def main():
         app = NotionDeveloper(mode="queued")  # Initialize with basic mode
         app.run_continuous_polling_mode()  # But use multi-status continuous polling
 
+
+def show_config_help():
+    """Show configuration help and setup instructions."""
+    print("🔧 Nomad Configuration Help")
+    print("=" * 50)
+    print()
+    print("Nomad requires several environment variables to function properly.")
+    print("You can set these in:")
+    print("  1. Your shell environment (export VAR=value)")
+    print("  2. A .env file in your working directory")
+    print("  3. A global config file (use --config-create)")
+    print()
+    
+    # Get global config to show requirements
+    try:
+        config = get_global_config()
+        summary = config.get_config_summary()
+        
+        required_vars = []
+        optional_vars = []
+        
+        for var_name, info in summary.items():
+            if info['required']:
+                required_vars.append((var_name, info['description']))
+            else:
+                optional_vars.append((var_name, info['description']))
+        
+        print("📋 Required Environment Variables:")
+        print("-" * 40)
+        for var_name, description in required_vars:
+            print(f"  {var_name}")
+            print(f"    {description}")
+            print()
+        
+        print("📋 Optional Environment Variables:")
+        print("-" * 40)
+        for var_name, description in optional_vars:
+            print(f"  {var_name}")
+            print(f"    {description}")
+            print()
+        
+        print("💡 Quick Setup:")
+        print("  1. Run: nomad --config-create")
+        print("  2. Edit the created config file")
+        print("  3. Set NOMAD_CONFIG_FILE environment variable")
+        print("  4. Run: nomad --config-status")
+        
+    except Exception as e:
+        print(f"Error loading configuration: {e}")
+
+def create_config_template(working_dir: Optional[str] = None):
+    """Create a configuration template file."""
+    try:
+        if working_dir:
+            os.chdir(working_dir)
+        
+        config = get_global_config()
+        template_path = config.create_global_config_template()
+        
+        print(f"✅ Configuration template created: {template_path}")
+        print()
+        print("Next steps:")
+        print(f"  1. Edit the file: {template_path}")
+        print("  2. Set required values (marked as REQUIRED)")
+        print(f"  3. Set environment variable: export NOMAD_CONFIG_FILE={template_path}")
+        print("  4. Test with: nomad --config-status")
+        
+    except Exception as e:
+        print(f"❌ Error creating config template: {e}")
+        sys.exit(1)
+
+def show_config_status(working_dir: Optional[str] = None):
+    """Show current configuration status."""
+    try:
+        if working_dir:
+            os.chdir(working_dir)
+        
+        config = get_global_config()
+        summary = config.get_config_summary()
+        issues = config.validate_working_environment()
+        
+        print("🔍 Configuration Status")
+        print("=" * 50)
+        print()
+        
+        # Show directories
+        print("📁 Directories:")
+        print(f"  Home: {config.get_home_directory()}")
+        print(f"  Tasks: {config.get_tasks_directory()}")
+        print(f"  Working: {Path.cwd()}")
+        print()
+        
+        # Show configuration status
+        print("⚙️  Configuration Variables:")
+        print("-" * 30)
+        for var_name, info in summary.items():
+            status_icon = "✅" if info['set'] else ("❌" if info['required'] else "⚪")
+            required_text = " (REQUIRED)" if info['required'] else ""
+            value_text = info['value'] if info['value'] else "Not set"
+            
+            print(f"  {status_icon} {var_name}{required_text}")
+            print(f"      Value: {value_text}")
+            print(f"      Description: {info['description']}")
+            print()
+        
+        # Show validation issues
+        if issues:
+            print("⚠️  Issues Found:")
+            print("-" * 20)
+            for issue in issues:
+                print(f"  ❌ {issue}")
+            print()
+        else:
+            print("✅ No configuration issues found!")
+            print()
+        
+        # Show API key status
+        available_providers = config.get_available_providers()
+        if available_providers:
+            print(f"🔑 Available AI Providers: {', '.join(available_providers)}")
+        else:
+            print("⚠️  No AI API keys configured. At least one is recommended.")
+        
+    except Exception as e:
+        print(f"❌ Error checking configuration status: {e}")
+        sys.exit(1)
+
+def perform_health_check(working_dir: Optional[str] = None):
+    """Perform comprehensive health check of the Nomad installation."""
+    try:
+        if working_dir:
+            os.chdir(working_dir)
+        
+        print("🏥 Nomad Health Check")
+        print("=" * 50)
+        print()
+        
+        health_status = {
+            "overall_healthy": True,
+            "checks": {},
+            "warnings": [],
+            "errors": []
+        }
+        
+        # 1. System Requirements Check
+        print("🔍 System Requirements:")
+        print("-" * 25)
+        
+        # Python version
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        if sys.version_info >= (3, 8):
+            print(f"  ✅ Python {python_version} (>= 3.8 required)")
+            health_status["checks"]["python_version"] = True
+        else:
+            print(f"  ❌ Python {python_version} (3.8+ required)")
+            health_status["checks"]["python_version"] = False
+            health_status["overall_healthy"] = False
+            health_status["errors"].append(f"Python version {python_version} is too old")
+        
+        print()
+        
+        # 2. Configuration Check
+        print("⚙️  Configuration:")
+        print("-" * 20)
+        
+        config = get_global_config(strict_validation=False)
+        
+        # Required configuration
+        required_vars = ["NOTION_TOKEN", "NOTION_BOARD_DB"]
+        for var in required_vars:
+            value = config.get(var)
+            if value:
+                print(f"  ✅ {var} configured")
+                health_status["checks"][var.lower()] = True
+            else:
+                print(f"  ❌ {var} not configured")
+                health_status["checks"][var.lower()] = False
+                health_status["overall_healthy"] = False
+                health_status["errors"].append(f"{var} is required but not configured")
+        
+        # API Keys
+        api_keys = ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY"]
+        valid_api_keys = []
+        for api_key in api_keys:
+            value = config.get(api_key)
+            if value:
+                provider = api_key.replace("_API_KEY", "").lower()
+                is_valid, issues = config.security_manager.validate_api_key_format(provider, value)
+                if is_valid:
+                    print(f"  ✅ {api_key} configured and valid")
+                    valid_api_keys.append(provider)
+                    health_status["checks"][api_key.lower()] = True
+                else:
+                    print(f"  ⚠️  {api_key} configured but format issues: {'; '.join(issues)}")
+                    health_status["checks"][api_key.lower()] = False
+                    health_status["warnings"].append(f"{api_key} format issues")
+            else:
+                print(f"  ⚪ {api_key} not configured")
+                health_status["checks"][api_key.lower()] = False
+        
+        if not valid_api_keys:
+            print("  ❌ No valid AI API keys found")
+            health_status["overall_healthy"] = False
+            health_status["errors"].append("At least one valid AI API key is required")
+        else:
+            print(f"  ✅ Valid API keys: {', '.join(valid_api_keys)}")
+        
+        print()
+        
+        # 3. Directory Access Check
+        print("📁 Directory Access:")
+        print("-" * 20)
+        
+        directories = [
+            ("Home", config.get_home_directory()),
+            ("Tasks", config.get_tasks_directory()),
+            ("Working", Path.cwd())
+        ]
+        
+        for name, path in directories:
+            try:
+                path_obj = Path(path)
+                if path_obj.exists():
+                    if os.access(path, os.R_OK | os.W_OK):
+                        print(f"  ✅ {name}: {path} (readable/writable)")
+                        health_status["checks"][f"{name.lower()}_directory"] = True
+                    else:
+                        print(f"  ❌ {name}: {path} (permission denied)")
+                        health_status["checks"][f"{name.lower()}_directory"] = False
+                        health_status["overall_healthy"] = False
+                        health_status["errors"].append(f"Cannot access {name} directory")
+                else:
+                    try:
+                        path_obj.mkdir(parents=True, exist_ok=True)
+                        print(f"  ✅ {name}: {path} (created)")
+                        health_status["checks"][f"{name.lower()}_directory"] = True
+                    except PermissionError:
+                        print(f"  ❌ {name}: {path} (cannot create)")
+                        health_status["checks"][f"{name.lower()}_directory"] = False
+                        health_status["overall_healthy"] = False
+                        health_status["errors"].append(f"Cannot create {name} directory")
+            except Exception as e:
+                print(f"  ❌ {name}: {path} (error: {e})")
+                health_status["checks"][f"{name.lower()}_directory"] = False
+                health_status["overall_healthy"] = False
+                health_status["errors"].append(f"Directory error for {name}: {e}")
+        
+        print()
+        
+        # 4. Overall Status
+        print("📊 Overall Status:")
+        print("-" * 20)
+        
+        if health_status["overall_healthy"]:
+            print("  ✅ System is healthy and ready to use!")
+        else:
+            print("  ❌ System has critical issues that need attention")
+        
+        if health_status["warnings"]:
+            print(f"  ⚠️  {len(health_status['warnings'])} warnings found")
+        
+        if health_status["errors"]:
+            print(f"  ❌ {len(health_status['errors'])} errors found")
+        
+        print()
+        
+        # 5. Recommendations
+        if health_status["errors"] or health_status["warnings"]:
+            print("💡 Recommendations:")
+            print("-" * 20)
+            
+            for error in health_status["errors"]:
+                print(f"  🔴 Critical: {error}")
+            
+            for warning in health_status["warnings"]:
+                print(f"  🟡 Warning: {warning}")
+            
+            print()
+            print("  Run the following commands for help:")
+            print("    nomad --config-help     # Configuration assistance")
+            print("    nomad --config-create   # Create config template")
+            print("    nomad --config-status   # Check configuration")
+            print()
+        
+        if health_status["overall_healthy"]:
+            print("🎉 Ready to run! Try:")
+            print("  nomad --help           # Show all available commands")
+            print("  nomad --refine         # Process Notion tasks")
+            
+        return health_status["overall_healthy"]
+        
+    except Exception as e:
+        print(f"❌ Health check failed: {e}")
+        return False
 
 if __name__ == "__main__":
     main()

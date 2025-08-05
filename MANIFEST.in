@@ -1,0 +1,46 @@
+# MANIFEST.in for nomad-notion-automation package
+
+# Include documentation
+include README.md
+include LICENSE
+include CHANGELOG.md
+
+# Include configuration templates
+recursive-include utils *.py
+recursive-include entry *.py
+recursive-include clients *.py
+recursive-include core *.py
+
+# Include test files for development installs
+recursive-include tests *.py
+
+# Include package data
+include pyproject.toml
+include requirements.txt
+
+# Exclude development and build files
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude *.log
+global-exclude .DS_Store
+global-exclude .gitignore
+global-exclude .env
+global-exclude .env.local
+
+# Exclude build directories
+prune build
+prune dist
+prune *.egg-info
+prune node_modules
+prune logs
+
+# Exclude specific development directories
+prune .git
+prune .github
+prune .vscode
+prune .idea
+prune .taskmaster
+
+# Include version info file if it exists
+include VERSION

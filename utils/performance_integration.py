@@ -130,7 +130,7 @@ class PerformanceMixin:
 def integrate_with_status_transition_manager():
     """Integrate performance monitoring with StatusTransitionManager."""
     try:
-        from status_transition_manager import StatusTransitionManager
+        from core.managers.status_transition_manager import StatusTransitionManager
         
         # Monkey patch the original methods
         original_transition = StatusTransitionManager.transition_status
@@ -156,7 +156,7 @@ def integrate_with_status_transition_manager():
 def integrate_with_claude_engine_invoker():
     """Integrate performance monitoring with ClaudeEngineInvoker."""
     try:
-        from claude_engine_invoker import ClaudeEngineInvoker
+        from clients.claude_engine_invoker import ClaudeEngineInvoker
         
         # Monkey patch the original method
         original_invoke = ClaudeEngineInvoker.invoke_claude_engine
@@ -176,7 +176,7 @@ def integrate_with_claude_engine_invoker():
 def integrate_with_task_file_manager():
     """Integrate performance monitoring with TaskFileManager."""
     try:
-        from task_file_manager import TaskFileManager
+        from core.managers.task_file_manager import TaskFileManager
         
         # Monkey patch the original method
         original_copy = TaskFileManager.copy_task_file_to_taskmaster
@@ -196,7 +196,7 @@ def integrate_with_task_file_manager():
 def integrate_with_multi_queue_processor():
     """Integrate performance monitoring with MultiQueueProcessor."""
     try:
-        from multi_queue_processor import MultiQueueProcessor
+        from core.processors.multi_queue_processor import MultiQueueProcessor
         
         # Monkey patch key methods
         original_process_queued_tasks = MultiQueueProcessor.process_queued_tasks

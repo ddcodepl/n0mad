@@ -1,3 +1,50 @@
+Metadata-Version: 2.4
+Name: nomad-notion-automation
+Version: 0.2.0
+Summary: Global Notion task refinement and automation tool with AI integration
+Author: Nomad Development Team
+Maintainer: Nomad Development Team
+License: MIT
+Project-URL: Homepage, https://github.com/nomad-notion-automation/nomad
+Project-URL: Repository, https://github.com/nomad-notion-automation/nomad.git
+Project-URL: Documentation, https://github.com/nomad-notion-automation/nomad/blob/main/README.md
+Project-URL: Bug Tracker, https://github.com/nomad-notion-automation/nomad/issues
+Keywords: notion,automation,ai,task-management,openai,anthropic
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Office/Business :: Office Suites
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Utilities
+Requires-Python: >=3.8.1
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: aiohttp>=3.9.0
+Requires-Dist: notion-client>=2.2.1
+Requires-Dist: openai>=1.35.0
+Requires-Dist: psutil>=7.0.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: pathlib2>=2.3.0; python_version < "3.4"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Provides-Extra: test
+Requires-Dist: pytest>=7.0.0; extra == "test"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "test"
+Requires-Dist: pytest-cov>=4.0.0; extra == "test"
+Dynamic: license-file
+
 # Nomad - Notion Task Automation Tool
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)

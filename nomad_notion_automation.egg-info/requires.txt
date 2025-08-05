@@ -1,0 +1,22 @@
+aiohttp>=3.9.0
+notion-client>=2.2.1
+openai>=1.35.0
+psutil>=7.0.0
+python-dotenv>=1.0.1
+
+[:python_version < "3.4"]
+pathlib2>=2.3.0
+
+[dev]
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+black>=23.0.0
+isort>=5.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+
+[test]
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0

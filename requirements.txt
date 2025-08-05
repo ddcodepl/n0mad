@@ -1,5 +1,14 @@
+# Core Dependencies
 psutil>=7.0.0
 notion-client>=2.2.1
 openai>=1.35.0
 python-dotenv>=1.0.1
 aiohttp>=3.9.0
+
+# Development Dependencies
+pytest>=7.0.0
+setuptools>=65.0.0
+
+# Optional/Recommended Dependencies
+pydantic>=2.0.0
+requests>=2.28.0

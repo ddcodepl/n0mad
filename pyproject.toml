@@ -1,16 +1,106 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "nomad"
-version = "0.1.0"
-description = "Notion task refinement automation tool"
+name = "nomad-notion-automation"
+version = "0.2.0"
+description = "Global Notion task refinement and automation tool with AI integration"
 readme = "README.md"
-requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Nomad Development Team"},
+]
+maintainers = [
+    {name = "Nomad Development Team"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Office Suites",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
+keywords = ["notion", "automation", "ai", "task-management", "openai", "anthropic"]
+requires-python = ">=3.8.1"
 dependencies = [
     "aiohttp>=3.9.0",
     "notion-client>=2.2.1",
     "openai>=1.35.0",
     "psutil>=7.0.0",
     "python-dotenv>=1.0.1",
+    "pathlib2>=2.3.0;python_version<'3.4'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
 ]
 
 [project.scripts]
-nomad = "src.main:main"
+nomad = "entry.main:main"
+nomad-config = "entry.main:main"
+
+[project.urls]
+Homepage = "https://github.com/nomad-notion-automation/nomad"
+Repository = "https://github.com/nomad-notion-automation/nomad.git"
+Documentation = "https://github.com/nomad-notion-automation/nomad/blob/main/README.md"
+"Bug Tracker" = "https://github.com/nomad-notion-automation/nomad/issues"
+
+[tool.setuptools]
+packages = ["clients", "core", "entry", "utils", "tests"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.md", "*.yml", "*.yaml", "*.json"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["*.pyc", "*.pyo", "__pycache__", "*.log"]
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 100
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
