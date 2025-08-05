@@ -210,8 +210,18 @@ class SimpleQueuedProcessor:
             # Step 4: Execute Claude Code command
             claude_success = self._execute_claude_command(task)
             
-            # Step 5: Update final status
+            # Step 5: Check for commit requirement and handle git operations
             if claude_success:
+                # Check if task requires commit
+                commit_required = self._check_commit_checkbox(page_id)
+                
+                if commit_required:
+                    logger.info(f"📝 Task {ticket_id} requires commit - preparing git commit...")
+                    commit_success = self._handle_git_commit(task, ticket_id)
+                    if not commit_success:
+                        logger.warning(f"⚠️ Git commit failed for task {ticket_id}, but proceeding with status update")
+                
+                # Update final status to Done
                 final_transition = self.status_manager.transition_status(
                     page_id=page_id,
                     from_status=TaskStatus.IN_PROGRESS.value,
@@ -827,6 +837,160 @@ Monitor the following aspects of the implementation:
         except Exception as e:
             logger.warning(f"⚠️ Could not get file changes: {e}")
             return []
+    
+    def _check_commit_checkbox(self, page_id: str) -> bool:
+        """
+        Check if the task has the 'Commit' checkbox property set to true.
+        
+        Args:
+            page_id: Notion page ID
+            
+        Returns:
+            True if commit checkbox is checked, False otherwise
+        """
+        try:
+            # Get the page data from Notion
+            page_data = self.notion_client.get_page(page_id)
+            
+            if not page_data:
+                logger.warning(f"⚠️ Could not retrieve page data for {page_id}")
+                return False
+            
+            # Check for Commit property
+            properties = page_data.get("properties", {})
+            commit_prop = properties.get("Commit", {})
+            
+            # Handle checkbox property type
+            if "checkbox" in commit_prop:
+                is_checked = commit_prop["checkbox"]
+                logger.info(f"📋 Commit checkbox for {page_id}: {'✅ Checked' if is_checked else '❌ Unchecked'}")
+                return bool(is_checked)
+            else:
+                logger.info(f"📋 No 'Commit' checkbox property found for {page_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking commit checkbox for {page_id}: {e}")
+            return False
+    
+    def _handle_git_commit(self, task: Dict[str, Any], ticket_id: str) -> bool:
+        """
+        Handle git commit operations for completed task.
+        
+        Args:
+            task: Task dictionary from Notion
+            ticket_id: Ticket ID for the task
+            
+        Returns:
+            True if commit successful, False otherwise
+        """
+        try:
+            title = task.get("title", "Unknown Task")
+            
+            # Get current git status to see what changed
+            git_status_result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                cwd=self.project_root
+            )
+            
+            if git_status_result.returncode != 0:
+                logger.error(f"❌ Failed to get git status: {git_status_result.stderr}")
+                return False
+            
+            # Check if there are any changes to commit
+            changes = git_status_result.stdout.strip()
+            if not changes:
+                logger.info(f"📋 No changes to commit for task {ticket_id}")
+                return True  # Not an error, just no changes
+            
+            logger.info(f"📝 Found changes to commit for task {ticket_id}:")
+            for line in changes.split('\n'):
+                if line.strip():
+                    logger.info(f"   {line}")
+            
+            # Add all changes to staging
+            git_add_result = subprocess.run(
+                ["git", "add", "."],
+                capture_output=True,
+                text=True,
+                cwd=self.project_root
+            )
+            
+            if git_add_result.returncode != 0:
+                logger.error(f"❌ Failed to stage changes: {git_add_result.stderr}")
+                return False
+            
+            # Generate commit message
+            commit_message = self._generate_commit_message(task, ticket_id, changes)
+            
+            # Perform the commit
+            git_commit_result = subprocess.run(
+                ["git", "commit", "-m", commit_message],
+                capture_output=True,
+                text=True,
+                cwd=self.project_root
+            )
+            
+            if git_commit_result.returncode != 0:
+                logger.error(f"❌ Failed to commit changes: {git_commit_result.stderr}")
+                return False
+            
+            logger.info(f"✅ Successfully committed changes for task {ticket_id}")
+            logger.info(f"📝 Commit message: {commit_message}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error handling git commit for task {ticket_id}: {e}")
+            return False
+    
+    def _generate_commit_message(self, task: Dict[str, Any], ticket_id: str, changes: str) -> str:
+        """
+        Generate a summarized commit message for the task.
+        
+        Args:
+            task: Task dictionary from Notion
+            ticket_id: Ticket ID for the task
+            changes: Git status output showing changed files
+            
+        Returns:
+            Formatted commit message
+        """
+        try:
+            title = task.get("title", "Unknown Task")
+            
+            # Parse changed files
+            changed_files = []
+            for line in changes.split('\n'):
+                if line.strip():
+                    # Parse git status format (e.g., "M  src/config.py")
+                    parts = line.strip().split(None, 1)
+                    if len(parts) >= 2:
+                        status = parts[0]
+                        file_path = parts[1]
+                        changed_files.append(file_path)
+            
+            # Create a concise summary of changes
+            if len(changed_files) <= 3:
+                files_summary = ", ".join(changed_files)
+            else:
+                files_summary = f"{', '.join(changed_files[:3])} and {len(changed_files) - 3} more"
+            
+            # Generate commit message
+            commit_message = f"feat: {title} ({ticket_id})\n\n"
+            commit_message += f"Implemented task: {title}\n"
+            commit_message += f"Modified files: {files_summary}\n\n"
+            commit_message += f"Task ID: {ticket_id}\n"
+            commit_message += "🤖 Auto-committed by Simple Queued Processor"
+            
+            return commit_message
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating commit message: {e}")
+            # Fallback to simple message
+            return f"feat: {ticket_id} - {task.get('title', 'Task completed')}\n\n🤖 Auto-committed by Simple Queued Processor"
     
     def _update_status_to_failed(self, page_id: str, error_message: str):
         """
