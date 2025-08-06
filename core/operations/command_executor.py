@@ -6,18 +6,20 @@ from pathlib import Path
 import shlex
 from utils.logging_config import get_logger
 from utils.file_operations import get_tasks_dir
+from core.managers.feedback_manager import FeedbackManager, ProcessingStage
 
 logger = get_logger(__name__)
 
 
 class CommandExecutor:
-    def __init__(self, base_dir: str = None, timeout: int = 120):
+    def __init__(self, base_dir: str = None, timeout: int = 120, feedback_manager: FeedbackManager = None):
         """
         Initialize CommandExecutor
         
         Args:
             base_dir: Base directory for command execution (defaults to current directory)
             timeout: Default timeout for commands in seconds (default: 5 minutes)
+            feedback_manager: Optional FeedbackManager for providing user feedback
         """
         # For global installation mode, use the actual working directory where the user is
         # For development mode, use the provided base_dir or current directory
@@ -36,11 +38,14 @@ class CommandExecutor:
                 self.base_dir = base_dir
                 
         self.timeout = timeout
+        self.feedback_manager = feedback_manager
         
         # Set up taskmaster path - use TASKMASTER_DIR env var or default to ./taskmaster
         self.taskmaster_path = self._get_taskmaster_path()
         logger.info(f"🔧 CommandExecutor initialized with base_dir: {self.base_dir}")
         logger.info(f"🔧 Using taskmaster path: {self.taskmaster_path}")
+        if self.feedback_manager:
+            logger.info(f"🔧 FeedbackManager integration enabled")
     
     def _get_taskmaster_path(self) -> str:
         """
@@ -65,13 +70,14 @@ class CommandExecutor:
         
         return taskmaster_path
     
-    def execute_taskmaster_command(self, ticket_ids: List[str], refined_dir: str = None) -> Dict[str, Any]:
+    def execute_taskmaster_command(self, ticket_ids: List[str], refined_dir: str = None, page_id: str = None) -> Dict[str, Any]:
         """
         Execute task-master parse-prd command for each validated ticket file.
         
         Args:
             ticket_ids: List of validated ticket IDs that have corresponding files
             refined_dir: Directory containing the refined markdown files (defaults to {base_dir}/tasks/refined)
+            page_id: Optional Notion page ID for feedback updates
         
         Returns:
             Dictionary with execution results for each ticket
@@ -89,10 +95,25 @@ class CommandExecutor:
         logger.info(f"📁 Tasks base directory: {tasks_base_dir}")
         logger.info(f"📁 Looking for files in: {refined_dir}")
         
+        # Add feedback if manager is available
+        if self.feedback_manager and page_id:
+            self.feedback_manager.add_feedback(
+                page_id, ProcessingStage.PREPARING,
+                f"Starting task-master execution for {len(ticket_ids)} ticket(s)",
+                details=f"Base directory: {self.base_dir}\nRefined files directory: {refined_dir}"
+            )
+        
         # Safety check: Warn if multiple tickets provided (should only be 1 to avoid conflicts)
         if len(ticket_ids) > 1:
             logger.warning(f"⚠️ Multiple tickets provided ({len(ticket_ids)}). This may cause tasks.json conflicts!")
             logger.warning("⚠️ Consider processing one ticket at a time to avoid overwrites.")
+            
+            if self.feedback_manager and page_id:
+                self.feedback_manager.add_feedback(
+                    page_id, ProcessingStage.PREPARING,
+                    f"Processing multiple tickets simultaneously ({len(ticket_ids)})",
+                    details="Warning: This may cause tasks.json conflicts. Consider processing one ticket at a time."
+                )
         
         results = {
             "successful_executions": [],
@@ -105,6 +126,14 @@ class CommandExecutor:
         for i, ticket_id in enumerate(ticket_ids):
             try:
                 logger.info(f"📄 Processing ticket {i+1}/{len(ticket_ids)}: {ticket_id}")
+                
+                # Add feedback for individual ticket processing
+                if self.feedback_manager and page_id:
+                    self.feedback_manager.add_feedback(
+                        page_id, ProcessingStage.PROCESSING,
+                        f"Processing ticket {i+1}/{len(ticket_ids)}: {ticket_id}",
+                        details="Searching for ticket file and executing task-master command"
+                    )
                 
                 # Construct the file path
                 file_patterns = [
@@ -121,12 +150,26 @@ class CommandExecutor:
                         break
                 
                 if not file_path:
-                    raise FileNotFoundError(f"No file found for ticket {ticket_id} in {refined_dir}")
+                    error_msg = f"No file found for ticket {ticket_id} in {refined_dir}"
+                    if self.feedback_manager and page_id:
+                        self.feedback_manager.add_error_feedback(
+                            page_id, ProcessingStage.PROCESSING,
+                            "Ticket file not found",
+                            details=f"Searched for patterns: {file_patterns}\nIn directory: {refined_dir}"
+                        )
+                    raise FileNotFoundError(error_msg)
                 
                 logger.info(f"📁 Using file: {file_path}")
                 
+                if self.feedback_manager and page_id:
+                    self.feedback_manager.add_feedback(
+                        page_id, ProcessingStage.PROCESSING,
+                        f"Found ticket file: {os.path.basename(file_path)}",
+                        details=f"Executing task-master parse-prd command"
+                    )
+                
                 # Execute the task-master command
-                execution_result = self._run_taskmaster_parse_prd(file_path, ticket_id)
+                execution_result = self._run_taskmaster_parse_prd(file_path, ticket_id, page_id)
                 
                 results["successful_executions"].append({
                     "ticket_id": ticket_id,
@@ -140,6 +183,13 @@ class CommandExecutor:
                 
                 logger.info(f"✅ Successfully executed task-master for ticket {ticket_id}")
                 
+                if self.feedback_manager and page_id:
+                    self.feedback_manager.add_feedback(
+                        page_id, ProcessingStage.PROCESSING,
+                        f"Successfully processed ticket {ticket_id}",
+                        details=f"Task-master execution completed for {os.path.basename(file_path)}"
+                    )
+                
             except Exception as e:
                 error_info = {
                     "ticket_id": ticket_id,
@@ -150,6 +200,14 @@ class CommandExecutor:
                 results["failure_count"] += 1
                 
                 logger.error(f"❌ Failed to execute task-master for ticket {ticket_id}: {e}")
+                
+                if self.feedback_manager and page_id:
+                    self.feedback_manager.add_error_feedback(
+                        page_id, ProcessingStage.PROCESSING,
+                        f"Failed to process ticket {ticket_id}",
+                        details=f"Error: {str(e)}\nFile path: {file_path if 'file_path' in locals() else 'unknown'}"
+                    )
+                
                 continue
         
         # Summary logging
@@ -169,13 +227,14 @@ class CommandExecutor:
         
         return results
     
-    def _run_taskmaster_parse_prd(self, file_path: str, ticket_id: str) -> Dict[str, Any]:
+    def _run_taskmaster_parse_prd(self, file_path: str, ticket_id: str, page_id: str = None) -> Dict[str, Any]:
         """
         Run the task-master parse-prd command for a specific file.
         
         Args:
             file_path: Path to the markdown file
             ticket_id: Ticket ID for logging purposes
+            page_id: Optional Notion page ID for feedback updates
         
         Returns:
             Dictionary with command execution results
@@ -190,6 +249,13 @@ class CommandExecutor:
         logger.info(f"🔧 Executing command: {command_str}")
         logger.info(f"📁 Working directory: {self.base_dir}")
         logger.info(f"⏰ Timeout set to: {self.timeout} seconds")
+        
+        if self.feedback_manager and page_id:
+            self.feedback_manager.add_feedback(
+                page_id, ProcessingStage.PROCESSING,
+                f"Executing task-master parse-prd command",
+                details=f"Command: {command_str}\nWorking directory: {self.base_dir}\nTimeout: {self.timeout}s"
+            )
         
         try:
             # Execute the command
@@ -214,6 +280,13 @@ class CommandExecutor:
             
             # Check if command was successful
             if result.returncode != 0:
+                error_msg = f"Command failed with exit code {result.returncode}"
+                if self.feedback_manager and page_id:
+                    self.feedback_manager.add_error_feedback(
+                        page_id, ProcessingStage.PROCESSING,
+                        error_msg,
+                        details=f"stdout: {result.stdout}\nstderr: {result.stderr}"
+                    )
                 raise subprocess.CalledProcessError(
                     result.returncode, 
                     command_str, 
@@ -223,7 +296,14 @@ class CommandExecutor:
             
             # Additional validation: Check if tasks.json was actually generated with valid content
             if not self._validate_taskmaster_output():
-                raise RuntimeError("task-master parse-prd completed but failed to generate valid tasks.json file")
+                error_msg = "task-master parse-prd completed but failed to generate valid tasks.json file"
+                if self.feedback_manager and page_id:
+                    self.feedback_manager.add_error_feedback(
+                        page_id, ProcessingStage.PROCESSING,
+                        "Task validation failed",
+                        details=error_msg
+                    )
+                raise RuntimeError(error_msg)
             
             return {
                 "command": command_str,
@@ -237,6 +317,12 @@ class CommandExecutor:
             execution_time = time.time() - start_time
             error_msg = f"Command timed out after {self.timeout} seconds"
             logger.error(f"⏰ {error_msg}")
+            if self.feedback_manager and page_id:
+                self.feedback_manager.add_error_feedback(
+                    page_id, ProcessingStage.PROCESSING,
+                    "Command execution timeout",
+                    details=f"Timeout: {self.timeout}s\nExecution time: {execution_time:.2f}s"
+                )
             raise TimeoutError(error_msg)
             
         except subprocess.CalledProcessError as e:
@@ -244,11 +330,23 @@ class CommandExecutor:
             error_msg = f"Command failed with exit code {e.returncode}"
             logger.error(f"❌ {error_msg}")
             logger.error(f"📤 Error output: {e.stderr}")
+            if self.feedback_manager and page_id:
+                self.feedback_manager.add_error_feedback(
+                    page_id, ProcessingStage.PROCESSING,
+                    error_msg,
+                    details=f"stderr: {e.stderr}\nExecution time: {execution_time:.2f}s"
+                )
             raise RuntimeError(f"{error_msg}: {e.stderr}")
             
         except FileNotFoundError:
             error_msg = f"task-master command not found at {self.taskmaster_path}. Make sure TASKMASTER_DIR is set correctly or ./taskmaster directory exists"
             logger.error(f"❌ {error_msg}")
+            if self.feedback_manager and page_id:
+                self.feedback_manager.add_error_feedback(
+                    page_id, ProcessingStage.PROCESSING,
+                    "Task-master command not found",
+                    details=f"Path: {self.taskmaster_path}\nCheck TASKMASTER_DIR environment variable"
+                )
             raise FileNotFoundError(error_msg)
     
     def test_taskmaster_availability(self) -> bool:

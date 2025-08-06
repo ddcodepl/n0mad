@@ -24,7 +24,7 @@ This status indicates a task is no longer needed and won't be completed.
 ## Execution
 
 ```bash
-task-master set-status --id=$ARGUMENTS --status=cancelled
+taskmaster set-status --id=$ARGUMENTS --status=cancelled
 ```
 
 ## Cancellation Impact

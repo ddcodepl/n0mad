@@ -4,13 +4,13 @@ Execute this streamlined installation:
 
 ```bash
 # Check and install in one command
-task-master --version 2>/dev/null || npm install -g task-master-ai
+taskmaster --version 2>/dev/null || npm install -g taskmaster-ai
 
 # Verify installation
-task-master --version
+taskmaster --version
 
 # Quick setup check
-task-master models --status || echo "Note: You'll need to set up an AI provider API key"
+taskmaster models --status || echo "Note: You'll need to set up an AI provider API key"
 ```
 
 If you see "command not found" after installation, you may need to:

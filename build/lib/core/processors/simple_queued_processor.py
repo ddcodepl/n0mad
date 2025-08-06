@@ -24,6 +24,7 @@ from pathlib import Path
 from core.operations.database_operations import DatabaseOperations
 from clients.notion_wrapper import NotionClientWrapper
 from core.managers.status_transition_manager import StatusTransitionManager
+from core.managers.feedback_manager import FeedbackManager, ProcessingStage
 from utils.task_status import TaskStatus
 from utils.logging_config import get_logger
 

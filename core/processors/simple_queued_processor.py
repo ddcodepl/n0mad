@@ -24,6 +24,7 @@ from pathlib import Path
 from core.operations.database_operations import DatabaseOperations
 from clients.notion_wrapper import NotionClientWrapper
 from core.managers.status_transition_manager import StatusTransitionManager
+from core.managers.feedback_manager import FeedbackManager, ProcessingStage
 from utils.task_status import TaskStatus
 from utils.logging_config import get_logger
 
@@ -55,6 +56,7 @@ class SimpleQueuedProcessor:
         self.notion_client = NotionClientWrapper()
         self.db_ops = DatabaseOperations(self.notion_client)
         self.status_manager = StatusTransitionManager(self.notion_client)
+        self.feedback_manager = FeedbackManager(self.notion_client)
         
         # Ensure critical directories exist
         self.taskmaster_tasks_file.parent.mkdir(parents=True, exist_ok=True)
@@ -184,6 +186,12 @@ class SimpleQueuedProcessor:
         
         try:
             # Step 1: Update status to 'In progress'
+            self.feedback_manager.add_feedback(
+                page_id, ProcessingStage.PROCESSING, 
+                f"Starting task processing for {ticket_id}",
+                details="Task moved to In Progress status"
+            )
+            
             transition = self.status_manager.transition_status(
                 page_id=page_id,
                 from_status=TaskStatus.QUEUED_TO_RUN.value,
@@ -191,37 +199,100 @@ class SimpleQueuedProcessor:
             )
             
             if transition.result.value != "success":
-                logger.error(f"❌ Failed to update status to 'In progress': {transition.error}")
+                error_msg = f"Failed to update status to 'In progress': {transition.error}"
+                logger.error(f"❌ {error_msg}")
+                self.feedback_manager.add_error_feedback(
+                    page_id, ProcessingStage.STATUS_TRANSITION, 
+                    error_msg, details=f"Transition from {TaskStatus.QUEUED_TO_RUN.value} to {TaskStatus.IN_PROGRESS.value} failed"
+                )
                 return False
             
             logger.info(f"✅ Status updated to 'In progress' for task {ticket_id}")
+            self.feedback_manager.add_feedback(
+                page_id, ProcessingStage.STATUS_TRANSITION,
+                f"Status transition: {TaskStatus.QUEUED_TO_RUN.value} → {TaskStatus.IN_PROGRESS.value}",
+                details="Task successfully moved to In Progress"
+            )
             
             # Step 2: Look for task file
+            self.feedback_manager.add_feedback(
+                page_id, ProcessingStage.PREPARING,
+                f"Searching for task file: {ticket_id}",
+                details=f"Looking in directory: {self.task_dir}"
+            )
+            
             task_file = self._find_task_file(ticket_id)
             if not task_file:
                 self._update_status_to_failed(page_id, f"Task file not found for {ticket_id}")
                 return False
             
+            self.feedback_manager.add_feedback(
+                page_id, ProcessingStage.PREPARING,
+                f"Task file found: {task_file.name}",
+                details=f"Full path: {task_file}"
+            )
+            
             # Step 3: Copy task file to taskmaster location
+            self.feedback_manager.add_feedback(
+                page_id, ProcessingStage.COPYING,
+                "Copying task file to TaskMaster location",
+                details=f"Source: {task_file}\nDestination: {self.taskmaster_tasks_file}"
+            )
+            
             if not self._copy_task_file(task_file):
                 self._update_status_to_failed(page_id, f"Failed to copy task file {task_file}")
                 return False
             
             # Step 4: Execute Claude Code command
+            self.feedback_manager.add_feedback(
+                page_id, ProcessingStage.PROCESSING,
+                "Executing Claude Code command",
+                details="Running automated task implementation"
+            )
+            
             claude_success = self._execute_claude_command(task)
             
             # Step 5: Check for commit requirement and handle git operations
             if claude_success:
+                self.feedback_manager.add_feedback(
+                    page_id, ProcessingStage.PROCESSING,
+                    "Claude Code execution completed successfully",
+                    details="Task implementation finished"
+                )
+                
                 # Check if task requires commit
                 commit_required = self._check_commit_checkbox(page_id)
                 
                 if commit_required:
                     logger.info(f"📝 Task {ticket_id} requires commit - preparing git commit...")
+                    self.feedback_manager.add_feedback(
+                        page_id, ProcessingStage.FINALIZING,
+                        "Preparing git commit",
+                        details=f"Task {ticket_id} marked for commit"
+                    )
+                    
                     commit_success = self._handle_git_commit(task, ticket_id)
                     if not commit_success:
                         logger.warning(f"⚠️ Git commit failed for task {ticket_id}, but proceeding with status update")
+                        self.feedback_manager.add_feedback(
+                            page_id, ProcessingStage.FINALIZING,
+                            "Git commit failed",
+                            details="Proceeding with task completion despite commit failure"
+                        )
+                    else:
+                        self.feedback_manager.add_feedback(
+                            page_id, ProcessingStage.FINALIZING,
+                            "Git commit completed successfully",
+                            details="Changes committed to repository"
+                        )
                 
                 # Update final status to Done
+                self.feedback_manager.add_feedback(
+                    page_id, ProcessingStage.FINALIZING,
+                    "Updating final status to Done",
+                    details="Task processing completed successfully"
+                )
+                
                 final_transition = self.status_manager.transition_status(
                     page_id=page_id,
                     from_status=TaskStatus.IN_PROGRESS.value,
@@ -230,9 +301,19 @@ class SimpleQueuedProcessor:
                 
                 if final_transition.result.value == "success":
                     logger.info(f"✅ Task {ticket_id} completed successfully")
+                    self.feedback_manager.add_feedback(
+                        page_id, ProcessingStage.STATUS_TRANSITION,
+                        f"Status transition: {TaskStatus.IN_PROGRESS.value} → {TaskStatus.DONE.value}",
+                        details="Task completed successfully"
+                    )
                     return True
                 else:
-                    logger.error(f"❌ Failed to update final status to 'Done': {final_transition.error}")
+                    error_msg = f"Failed to update final status to 'Done': {final_transition.error}"
+                    logger.error(f"❌ {error_msg}")
+                    self.feedback_manager.add_error_feedback(
+                        page_id, ProcessingStage.STATUS_TRANSITION,
+                        error_msg, details="Could not finalize task status"
+                    )
                     return False
             else:
                 self._update_status_to_failed(page_id, "Claude Code execution failed")
@@ -994,13 +1075,22 @@ Monitor the following aspects of the implementation:
     
     def _update_status_to_failed(self, page_id: str, error_message: str):
         """
-        Update task status to Failed with error message.
+        Update task status to Failed with error message using FeedbackManager.
         
         Args:
             page_id: Notion page ID
             error_message: Error message to include
         """
         try:
+            # Add error feedback first
+            self.feedback_manager.add_error_feedback(
+                page_id=page_id,
+                stage=ProcessingStage.ERROR_HANDLING,
+                error_message=error_message,
+                details="Task processing failed and status will be updated to Failed"
+            )
+            
+            # Attempt status transition
             transition = self.status_manager.transition_status(
                 page_id=page_id,
                 from_status=TaskStatus.IN_PROGRESS.value,
@@ -1011,20 +1101,39 @@ Monitor the following aspects of the implementation:
             if transition.result.value == "success":
                 logger.info(f"✅ Status updated to 'Failed' with message: {error_message}")
                 
-                # Try to update feedback with error message
-                try:
-                    self.notion_client.update_page_property(
-                        page_id=page_id,
-                        property_name="Feedback",
-                        property_value=f"[{datetime.now().isoformat()}] FAILED: {error_message}"
-                    )
-                except Exception as feedback_error:
-                    logger.warning(f"⚠️ Failed to update feedback property: {feedback_error}")
+                # Add status transition feedback
+                self.feedback_manager.add_status_transition_feedback(
+                    page_id=page_id,
+                    from_status=TaskStatus.IN_PROGRESS.value,
+                    to_status=TaskStatus.FAILED.value,
+                    success=True,
+                    error=None
+                )
             else:
-                logger.error(f"❌ Failed to update status to 'Failed': {transition.error}")
+                error_detail = f"Failed to update status to 'Failed': {transition.error}"
+                logger.error(f"❌ {error_detail}")
+                
+                # Add additional error feedback about status transition failure
+                self.feedback_manager.add_error_feedback(
+                    page_id=page_id,
+                    stage=ProcessingStage.STATUS_TRANSITION,
+                    error_message="Status transition to Failed status failed",
+                    details=error_detail
+                )
                 
         except Exception as e:
-            logger.error(f"❌ Error updating status to failed: {e}")
+            logger.error(f"❌ Exception updating status to failed: {e}")
+            
+            # Try to add feedback about the exception if possible
+            try:
+                self.feedback_manager.add_error_feedback(
+                    page_id=page_id,
+                    stage=ProcessingStage.ERROR_HANDLING,
+                    error_message="Critical error in status update process",
+                    details=f"Exception during _update_status_to_failed: {str(e)}"
+                )
+            except Exception as feedback_error:
+                logger.error(f"❌ Could not add feedback about critical error: {feedback_error}")
 
 
 def main():

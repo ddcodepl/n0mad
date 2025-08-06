@@ -6,33 +6,33 @@
 
 ```bash
 # Project Setup
-task-master init                                    # Initialize Task Master in current project
-task-master parse-prd .taskmaster/docs/prd.txt      # Generate tasks from PRD document
-task-master models --setup                        # Configure AI models interactively
+taskmaster init                                    # Initialize Task Master in current project
+taskmaster parse-prd .taskmaster/docs/prd.txt      # Generate tasks from PRD document
+taskmaster models --setup                        # Configure AI models interactively
 
 # Daily Development Workflow
-task-master list                                   # Show all tasks with status
-task-master next                                   # Get next available task to work on
-task-master show <id>                             # View detailed task information (e.g., task-master show 1.2)
-task-master set-status --id=<id> --status=done    # Mark task complete
+taskmaster list                                   # Show all tasks with status
+taskmaster next                                   # Get next available task to work on
+taskmaster show <id>                             # View detailed task information (e.g., taskmaster show 1.2)
+taskmaster set-status --id=<id> --status=done    # Mark task complete
 
 # Task Management
-task-master add-task --prompt="description" --research        # Add new task with AI assistance
-task-master expand --id=<id> --research --force              # Break task into subtasks
-task-master update-task --id=<id> --prompt="changes"         # Update specific task
-task-master update --from=<id> --prompt="changes"            # Update multiple tasks from ID onwards
-task-master update-subtask --id=<id> --prompt="notes"        # Add implementation notes to subtask
+taskmaster add-task --prompt="description" --research        # Add new task with AI assistance
+taskmaster expand --id=<id> --research --force              # Break task into subtasks
+taskmaster update-task --id=<id> --prompt="changes"         # Update specific task
+taskmaster update --from=<id> --prompt="changes"            # Update multiple tasks from ID onwards
+taskmaster update-subtask --id=<id> --prompt="notes"        # Add implementation notes to subtask
 
 # Analysis & Planning
-task-master analyze-complexity --research          # Analyze task complexity
-task-master complexity-report                      # View complexity analysis
-task-master expand --all --research               # Expand all eligible tasks
+taskmaster analyze-complexity --research          # Analyze task complexity
+taskmaster complexity-report                      # View complexity analysis
+taskmaster expand --all --research               # Expand all eligible tasks
 
 # Dependencies & Organization
-task-master add-dependency --id=<id> --depends-on=<id>       # Add task dependency
-task-master move --from=<id> --to=<id>                       # Reorganize task hierarchy
-task-master validate-dependencies                            # Check for dependency issues
-task-master generate                                         # Update task markdown files (usually auto-called)
+taskmaster add-dependency --id=<id> --depends-on=<id>       # Add task dependency
+taskmaster move --from=<id> --to=<id>                       # Reorganize task hierarchy
+taskmaster validate-dependencies                            # Check for dependency issues
+taskmaster generate                                         # Update task markdown files (usually auto-called)
 ```
 
 ## Key Files & Project Structure
@@ -40,7 +40,7 @@ task-master generate                                         # Update task markd
 ### Core Files
 
 - `.taskmaster/tasks/tasks.json` - Main task data file (auto-managed)
-- `.taskmaster/config.json` - AI model configuration (use `task-master models` to modify)
+- `.taskmaster/config.json` - AI model configuration (use `taskmaster models` to modify)
 - `.taskmaster/docs/prd.txt` - Product Requirements Document for parsing
 - `.taskmaster/tasks/*.txt` - Individual task files (auto-generated from tasks.json)
 - `.env` - API keys for CLI usage
@@ -83,9 +83,9 @@ Task Master provides an MCP server that Claude Code can connect to. Configure in
 ```json
 {
   "mcpServers": {
-    "task-master-ai": {
+    "taskmaster-ai": {
       "command": "npx",
-      "args": ["-y", "--package=task-master-ai", "task-master-ai"],
+      "args": ["-y", "--package=taskmaster-ai", "taskmaster-ai"],
       "env": {
         "ANTHROPIC_API_KEY": "your_key_here",
         "PERPLEXITY_API_KEY": "your_key_here",
@@ -107,25 +107,25 @@ Task Master provides an MCP server that Claude Code can connect to. Configure in
 ```javascript
 help; // = shows available taskmaster commands
 // Project setup
-initialize_project; // = task-master init
-parse_prd; // = task-master parse-prd
+initialize_project; // = taskmaster init
+parse_prd; // = taskmaster parse-prd
 
 // Daily workflow
-get_tasks; // = task-master list
-next_task; // = task-master next
-get_task; // = task-master show <id>
-set_task_status; // = task-master set-status
+get_tasks; // = taskmaster list
+next_task; // = taskmaster next
+get_task; // = taskmaster show <id>
+set_task_status; // = taskmaster set-status
 
 // Task management
-add_task; // = task-master add-task
-expand_task; // = task-master expand
-update_task; // = task-master update-task
-update_subtask; // = task-master update-subtask
-update; // = task-master update
+add_task; // = taskmaster add-task
+expand_task; // = taskmaster expand
+update_task; // = taskmaster update-task
+update_subtask; // = taskmaster update-subtask
+update; // = taskmaster update
 
 // Analysis
-analyze_project_complexity; // = task-master analyze-complexity
-complexity_report; // = task-master complexity-report
+analyze_project_complexity; // = taskmaster analyze-complexity
+complexity_report; // = taskmaster complexity-report
 ```
 
 ## Claude Code Workflow Integration
@@ -136,14 +136,14 @@ complexity_report; // = task-master complexity-report
 
 ```bash
 # Initialize Task Master
-task-master init
+taskmaster init
 
 # Create or obtain PRD, then parse it
-task-master parse-prd .taskmaster/docs/prd.txt
+taskmaster parse-prd .taskmaster/docs/prd.txt
 
 # Analyze complexity and expand tasks
-task-master analyze-complexity --research
-task-master expand --all --research
+taskmaster analyze-complexity --research
+taskmaster expand --all --research
 ```
 
 If tasks already exist, another PRD can be parsed (with new information only!) using parse-prd with --append flag. This will add the generated tasks to the existing list of tasks..
@@ -152,14 +152,14 @@ If tasks already exist, another PRD can be parsed (with new information only!) u
 
 ```bash
 # Start each session
-task-master next                           # Find next available task
-task-master show <id>                     # Review task details
+taskmaster next                           # Find next available task
+taskmaster show <id>                     # Review task details
 
 # During implementation, check in code context into the tasks and subtasks
-task-master update-subtask --id=<id> --prompt="implementation notes..."
+taskmaster update-subtask --id=<id> --prompt="implementation notes..."
 
 # Complete tasks
-task-master set-status --id=<id> --status=done
+taskmaster set-status --id=<id> --status=done
 ```
 
 #### 3. Multi-Claude Workflows
@@ -186,8 +186,8 @@ Find the next available Task Master task and show its details.
 
 Steps:
 
-1. Run `task-master next` to get the next task
-2. If a task is available, run `task-master show <id>` for full details
+1. Run `taskmaster next` to get the next task
+2. If a task is available, run `taskmaster show <id>` for full details
 3. Provide a summary of what needs to be implemented
 4. Suggest the first implementation step
 ```
@@ -199,11 +199,11 @@ Complete a Task Master task: $ARGUMENTS
 
 Steps:
 
-1. Review the current task with `task-master show $ARGUMENTS`
+1. Review the current task with `taskmaster show $ARGUMENTS`
 2. Verify all implementation is complete
 3. Run any tests related to this task
-4. Mark as complete: `task-master set-status --id=$ARGUMENTS --status=done`
-5. Show the next available task with `task-master next`
+4. Mark as complete: `taskmaster set-status --id=$ARGUMENTS --status=done`
+5. Show the next available task with `taskmaster next`
 ```
 
 ## Tool Allowlist Recommendations
@@ -214,7 +214,7 @@ Add to `.claude/settings.json`:
 {
   "allowedTools": [
     "Edit",
-    "Bash(task-master *)",
+    "Bash(taskmaster *)",
     "Bash(git commit:*)",
     "Bash(git add:*)",
     "Bash(npm run *)",
@@ -243,12 +243,12 @@ An API key is required for any provider used across any of the 3 roles defined i
 
 ```bash
 # Interactive setup (recommended)
-task-master models --setup
+taskmaster models --setup
 
 # Set specific models
-task-master models --set-main claude-3-5-sonnet-20241022
-task-master models --set-research perplexity-llama-3.1-sonar-large-128k-online
-task-master models --set-fallback gpt-4o-mini
+taskmaster models --set-main claude-3-5-sonnet-20241022
+taskmaster models --set-research perplexity-llama-3.1-sonar-large-128k-online
+taskmaster models --set-fallback gpt-4o-mini
 ```
 
 ## Task Structure & IDs
@@ -290,27 +290,27 @@ task-master models --set-fallback gpt-4o-mini
 
 - Use `/clear` between different tasks to maintain focus
 - This CLAUDE.md file is automatically loaded for context
-- Use `task-master show <id>` to pull specific task context when needed
+- Use `taskmaster show <id>` to pull specific task context when needed
 
 ### Iterative Implementation
 
-1. `task-master show <subtask-id>` - Understand requirements
+1. `taskmaster show <subtask-id>` - Understand requirements
 2. Explore codebase and plan implementation
-3. `task-master update-subtask --id=<id> --prompt="detailed plan"` - Log plan
-4. `task-master set-status --id=<id> --status=in-progress` - Start work
+3. `taskmaster update-subtask --id=<id> --prompt="detailed plan"` - Log plan
+4. `taskmaster set-status --id=<id> --status=in-progress` - Start work
 5. Implement code following logged plan
-6. `task-master update-subtask --id=<id> --prompt="what worked/didn't work"` - Log progress
-7. `task-master set-status --id=<id> --status=done` - Complete task
+6. `taskmaster update-subtask --id=<id> --prompt="what worked/didn't work"` - Log progress
+7. `taskmaster set-status --id=<id> --status=done` - Complete task
 
 ### Complex Workflows with Checklists
 
 For large migrations or multi-step processes:
 
 1. Create a markdown PRD file describing the new changes: `touch task-migration-checklist.md` (prds can be .txt or .md)
-2. Use Taskmaster to parse the new prd with `task-master parse-prd --append` (also available in MCP)
+2. Use Taskmaster to parse the new prd with `taskmaster parse-prd --append` (also available in MCP)
 3. Use Taskmaster to expand the newly generated tasks into subtasks. Consdier using `analyze-complexity` with the correct --to and --from IDs (the new ids) to identify the ideal subtask amounts for each task. Then expand them.
 4. Work through items systematically, checking them off as completed
-5. Use `task-master update-subtask` to log progress on each task/subtask and/or updating/researching them before/during implementation if getting stuck
+5. Use `taskmaster update-subtask` to log progress on each task/subtask and/or updating/researching them before/during implementation if getting stuck
 
 ### Git Integration
 
@@ -345,10 +345,10 @@ cd ../project-api && claude     # Terminal 2: API work
 cat .env                           # For CLI usage
 
 # Verify model configuration
-task-master models
+taskmaster models
 
 # Test with different model
-task-master models --set-fallback gpt-4o-mini
+taskmaster models --set-fallback gpt-4o-mini
 ```
 
 ### MCP Connection Issues
@@ -362,10 +362,10 @@ task-master models --set-fallback gpt-4o-mini
 
 ```bash
 # Regenerate task files from tasks.json
-task-master generate
+taskmaster generate
 
 # Fix dependency issues
-task-master fix-dependencies
+taskmaster fix-dependencies
 ```
 
 DO NOT RE-INITIALIZE. That will not do anything beyond re-adding the same Taskmaster core files.
@@ -376,28 +376,28 @@ DO NOT RE-INITIALIZE. That will not do anything beyond re-adding the same Taskma
 
 These commands make AI calls and may take up to a minute:
 
-- `parse_prd` / `task-master parse-prd`
-- `analyze_project_complexity` / `task-master analyze-complexity`
-- `expand_task` / `task-master expand`
-- `expand_all` / `task-master expand --all`
-- `add_task` / `task-master add-task`
-- `update` / `task-master update`
-- `update_task` / `task-master update-task`
-- `update_subtask` / `task-master update-subtask`
+- `parse_prd` / `taskmaster parse-prd`
+- `analyze_project_complexity` / `taskmaster analyze-complexity`
+- `expand_task` / `taskmaster expand`
+- `expand_all` / `taskmaster expand --all`
+- `add_task` / `taskmaster add-task`
+- `update` / `taskmaster update`
+- `update_task` / `taskmaster update-task`
+- `update_subtask` / `taskmaster update-subtask`
 
 ### File Management
 
 - Never manually edit `tasks.json` - use commands instead
-- Never manually edit `.taskmaster/config.json` - use `task-master models`
+- Never manually edit `.taskmaster/config.json` - use `taskmaster models`
 - Task markdown files in `tasks/` are auto-generated
-- Run `task-master generate` after manual changes to tasks.json
+- Run `taskmaster generate` after manual changes to tasks.json
 
 ### Claude Code Session Management
 
 - Use `/clear` frequently to maintain focused context
 - Create custom slash commands for repeated Task Master workflows
 - Configure tool allowlist to streamline permissions
-- Use headless mode for automation: `claude -p "task-master next"`
+- Use headless mode for automation: `claude -p "taskmaster next"`
 
 ### Multi-Task Updates
 

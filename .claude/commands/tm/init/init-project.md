@@ -13,7 +13,7 @@ Parse arguments to determine initialization preferences.
 
 2. **Project Setup**
    ```bash
-   task-master init
+   taskmaster init
    ```
 
 3. **Smart Initialization**
