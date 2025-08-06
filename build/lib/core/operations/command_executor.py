@@ -46,11 +46,22 @@ class CommandExecutor:
     def _get_taskmaster_path(self) -> str:
         """
         Get the path to the taskmaster executable.
-        Uses TASKMASTER_DIR environment variable or defaults to ./taskmaster
+        First checks for globally installed task-master, then uses TASKMASTER_DIR environment variable or defaults to ./taskmaster
         
         Returns:
             Path to taskmaster executable
         """
+        # First try to use globally installed task-master
+        try:
+            import shutil
+            global_taskmaster = shutil.which('task-master')
+            if global_taskmaster:
+                logger.info(f"✅ Found globally installed task-master at: {global_taskmaster}")
+                return global_taskmaster
+        except Exception as e:
+            logger.warning(f"⚠️ Error checking for global task-master: {e}")
+        
+        # Fall back to local installation
         taskmaster_dir = os.environ.get('TASKMASTER_DIR', './taskmaster')
         
         # If it's a relative path, make it relative to base_dir
@@ -64,6 +75,7 @@ class CommandExecutor:
         if os.name == 'nt' and not taskmaster_path.endswith('.exe'):
             taskmaster_path += '.exe'
         
+        logger.warning(f"⚠️ Using local taskmaster path (global not found): {taskmaster_path}")
         return taskmaster_path
     
     def execute_taskmaster_command(self, ticket_ids: List[str], refined_dir: str = None) -> Dict[str, Any]:

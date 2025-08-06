@@ -350,18 +350,33 @@ USE MCP TOOLS: You have direct access to Task Master MCP tools - use them instea
                 # Remove from active processes
                 self._active_processes.pop(invocation.invocation_id, None)
                 
+                # Enhanced Claude output display
+                if stdout:
+                    logger.info(f"🤖 Claude Output ({len(stdout)} chars):")
+                    for line in stdout.splitlines():
+                        if line.strip():  # Skip empty lines
+                            logger.info(f"    {line}")
+                            print(f"🤖 Claude: {line}")  # Also print to console
+                
                 if process.returncode == 0:
                     invocation.result = InvocationResult.SUCCESS
                     logger.info(f"✅ Claude process completed successfully")
-                    logger.info(f"📤 Output length: {len(stdout)} chars")
                     if stderr:
-                        logger.warning(f"⚠️ Stderr: {stderr[:500]}...")
+                        logger.warning(f"⚠️ Claude Stderr:")
+                        for line in stderr.splitlines():
+                            if line.strip():
+                                logger.warning(f"    {line}")
+                                print(f"⚠️ Claude Warning: {line}")
                 else:
                     invocation.result = InvocationResult.FAILED
                     invocation.error = f"Process exited with code {process.returncode}"
                     logger.error(f"❌ Claude process failed with exit code: {process.returncode}")
                     if stderr:
-                        logger.error(f"📤 Stderr: {stderr[:500]}...")
+                        logger.error(f"🚨 Claude Errors:")
+                        for line in stderr.splitlines():
+                            if line.strip():
+                                logger.error(f"    {line}")
+                                print(f"🚨 Claude Error: {line}")
                 
             except subprocess.TimeoutExpired:
                 logger.warning(f"⏰ Claude process timed out after {self.timeout_seconds}s")
