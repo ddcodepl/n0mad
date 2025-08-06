@@ -36,34 +36,7 @@ class CommandExecutor:
                 self.base_dir = base_dir
                 
         self.timeout = timeout
-        
-        # Set up taskmaster path - use TASKMASTER_DIR env var or default to ./taskmaster
-        self.taskmaster_path = self._get_taskmaster_path()
         logger.info(f"🔧 CommandExecutor initialized with base_dir: {self.base_dir}")
-        logger.info(f"🔧 Using taskmaster path: {self.taskmaster_path}")
-    
-    def _get_taskmaster_path(self) -> str:
-        """
-        Get the path to the taskmaster executable.
-        Uses TASKMASTER_DIR environment variable or defaults to ./taskmaster
-        
-        Returns:
-            Path to taskmaster executable
-        """
-        taskmaster_dir = os.environ.get('TASKMASTER_DIR', './taskmaster')
-        
-        # If it's a relative path, make it relative to base_dir
-        if not os.path.isabs(taskmaster_dir):
-            taskmaster_dir = os.path.join(self.base_dir, taskmaster_dir)
-        
-        # The actual executable path
-        taskmaster_path = os.path.join(taskmaster_dir, 'task-master')
-        
-        # On Windows, add .exe extension if not present
-        if os.name == 'nt' and not taskmaster_path.endswith('.exe'):
-            taskmaster_path += '.exe'
-        
-        return taskmaster_path
     
     def execute_taskmaster_command(self, ticket_ids: List[str], refined_dir: str = None) -> Dict[str, Any]:
         """
@@ -184,7 +157,7 @@ class CommandExecutor:
         start_time = time.time()
         
         # Construct the command with --force flag for automation
-        command = [self.taskmaster_path, "parse-prd", file_path, "--force"]  
+        command = ["task-master", "parse-prd", file_path, "--force"]  
         command_str = " ".join(shlex.quote(arg) for arg in command)
         
         logger.info(f"🔧 Executing command: {command_str}")
@@ -247,7 +220,7 @@ class CommandExecutor:
             raise RuntimeError(f"{error_msg}: {e.stderr}")
             
         except FileNotFoundError:
-            error_msg = f"task-master command not found at {self.taskmaster_path}. Make sure TASKMASTER_DIR is set correctly or ./taskmaster directory exists"
+            error_msg = "task-master command not found. Make sure it's installed and in PATH"
             logger.error(f"❌ {error_msg}")
             raise FileNotFoundError(error_msg)
     
@@ -262,7 +235,7 @@ class CommandExecutor:
             logger.info("🧪 Testing task-master availability...")
             
             result = subprocess.run(
-                [self.taskmaster_path, "--version"],
+                ["task-master", "--version"],
                 cwd=self.base_dir,
                 capture_output=True,
                 text=True,
@@ -283,7 +256,7 @@ class CommandExecutor:
             return False
             
         except FileNotFoundError:
-            logger.error(f"❌ task-master command not found at {self.taskmaster_path}")
+            logger.error("❌ task-master command not found in PATH")
             return False
             
         except Exception as e:

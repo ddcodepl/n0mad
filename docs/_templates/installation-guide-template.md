@@ -13,13 +13,14 @@ Brief description of this installation method, its advantages, and when to use i
 
 ### Required Software
 - **Python**: Version 3.8 or higher
+- **pipx**: For global installations (recommended)
 - **Node.js**: Version 14 or higher (if applicable)
 - **Git**: For development installations
 - **Docker**: For container installations (if applicable)
 
 ### Dependencies
 List any system-level dependencies that need to be installed first:
-- Package manager (pip, npm, etc.)
+- Package managers (pipx, pip, npm, etc.)
 - System libraries
 - Development tools
 
@@ -39,6 +40,10 @@ Detailed instructions for preparing the installation environment:
 # Example preparation commands
 python --version  # Verify Python version
 pip --version     # Verify pip is available
+
+# Install pipx for global installations (recommended)
+python -m pip install --user pipx
+python -m pipx ensurepath  # Add to PATH
 ```
 
 Expected output:
@@ -51,12 +56,15 @@ pip 21.0.1 from /usr/lib/python3/dist-packages/pip (python 3.8)
 Main installation commands:
 
 ```bash
-# Primary installation command
-pip install nomad-notion-automation
+# Global installation (recommended)
+pipx install nomad-notion-automation
 ```
 
 Alternative installation methods (if applicable):
 ```bash
+# Local installation with pip
+pip install nomad-notion-automation
+
 # Development installation
 git clone https://github.com/nomad-notion-automation/nomad.git
 cd nomad
@@ -107,6 +115,7 @@ Nomad v0.2.0 - Notion Automation Tool
 ```
 
 ### Configuration Verification
+
 Verify configuration is correct:
 
 ```bash
@@ -135,6 +144,36 @@ pytest tests/
 ```
 
 ## Post-Installation Setup
+
+### Updating the Package
+
+To update the package to the latest version:
+
+```bash
+# If installed with pipx (recommended)
+pipx upgrade nomad-notion-automation
+
+# Check for all outdated pipx packages
+pipx list --outdated
+
+# If installed with pip
+pip install --upgrade nomad-notion-automation
+```
+
+To check the current installed version:
+
+```bash
+nomad --version
+```
+
+For development installations:
+
+```bash
+# If installed in development mode (-e)
+cd /path/to/nomad
+git pull
+pip install -e .
+```
 
 ### Additional Configuration
 - Configure AI provider API keys
@@ -198,7 +237,10 @@ docker run -d --env-file .env nomad
 
 **Solution**:
 ```bash
-# Use user installation
+# Use pipx (recommended)
+pipx install nomad-notion-automation
+
+# Or use user installation with pip
 pip install --user nomad-notion-automation
 
 # Or use virtual environment
@@ -220,6 +262,10 @@ pip install nomad-notion-automation
 
 **Solution**:
 ```bash
+# If installed with pipx, this shouldn't happen as pipx adds to PATH automatically
+# Verify pipx installation: pipx list
+
+# If installed with pip (user installation)
 # Add to PATH (Linux/macOS)
 export PATH=$PATH:~/.local/bin
 
@@ -232,7 +278,10 @@ export PATH=$PATH:~/.local/bin
 
 **Solution**:
 ```bash
-# Use virtual environment
+# Use pipx (recommended) to isolate dependencies
+pipx install nomad-notion-automation
+
+# Or use virtual environment
 python -m venv nomad-env
 source nomad-env/bin/activate
 pip install nomad-notion-automation
@@ -264,7 +313,10 @@ pip install nomad-notion-automation
 
 ### Standard Uninstallation
 ```bash
-# Uninstall package
+# Uninstall package (if installed with pipx)
+pipx uninstall nomad-notion-automation
+
+# Uninstall package (if installed with pip)
 pip uninstall nomad-notion-automation
 
 # Remove configuration files (optional)
@@ -274,7 +326,8 @@ rm -rf ~/.nomad
 ### Complete Removal
 ```bash
 # Remove all traces
-pip uninstall nomad-notion-automation
+pipx uninstall nomad-notion-automation  # If installed with pipx
+pip uninstall nomad-notion-automation   # If installed with pip
 rm -rf ~/.nomad
 rm -rf ~/.config/nomad
 # Remove any custom configuration files

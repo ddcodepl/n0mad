@@ -93,11 +93,6 @@ class GlobalConfigManager:
             'description': 'Fail transitions if checkbox not found (vs. warn and allow)',
             'default': 'false',
             'required': False
-        },
-        'TASKMASTER_DIR': {
-            'description': 'Directory containing the taskmaster executable (defaults to ./taskmaster)',
-            'default': './taskmaster',
-            'required': False
         }
     }
     
