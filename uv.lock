@@ -1566,8 +1566,8 @@ wheels = [
 ]
 
 [[package]]
-name = "nomad-notion-automation"
-version = "0.2.0"
+name = "n0mad"
+version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp", version = "3.10.11", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },

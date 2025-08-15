@@ -16,7 +16,7 @@ This status indicates work is complete but needs verification before final appro
 ## Execution
 
 ```bash
-taskmaster set-status --id=$ARGUMENTS --status=review
+task-master set-status --id=$ARGUMENTS --status=review
 ```
 
 ## Review Preparation

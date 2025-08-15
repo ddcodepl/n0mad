@@ -61,7 +61,7 @@ bash: nomad: command not found
    # For bash
    echo 'export PATH=$PATH:~/.local/bin' >> ~/.bashrc
    source ~/.bashrc
-   
+
    # For zsh
    echo 'export PATH=$PATH:~/.local/bin' >> ~/.zshrc
    source ~/.zshrc
@@ -134,10 +134,10 @@ ERROR: nomad-notion-automation requires Python '>=3.8' but the running Python is
    # Ubuntu/Debian
    sudo apt update
    sudo apt install python3.9 python3.9-pip
-   
+
    # macOS (using Homebrew)
    brew install python@3.9
-   
+
    # CentOS/RHEL
    sudo yum install python39 python39-pip
    ```
@@ -230,7 +230,7 @@ WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status
    ```bash
    # On a machine with internet:
    pip download nomad-notion-automation
-   
+
    # On the target machine:
    pip install nomad_notion_automation-*.whl
    ```
@@ -457,7 +457,7 @@ which pip3
 
 ### Where to Get Help
 
-1. **Documentation**: 
+1. **Documentation**:
    - [Installation Guide](README.md)
    - [Configuration Guide](../configuration/)
    - [System Requirements](system-requirements.md)
@@ -515,7 +515,7 @@ When filing an issue, include:
    ```bash
    # Update package managers
    pip install --upgrade pip setuptools wheel
-   
+
    # Update system packages regularly
    sudo apt update && sudo apt upgrade  # Ubuntu/Debian
    brew update && brew upgrade          # macOS

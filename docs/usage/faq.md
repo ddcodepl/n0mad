@@ -4,7 +4,7 @@ Quick answers to the most common questions about Nomad. Can't find your answer? 
 
 ## Table of Contents
 - [Installation and Setup](#installation-and-setup)
-- [Configuration](#configuration)  
+- [Configuration](#configuration)
 - [Task Processing](#task-processing)
 - [Integrations](#integrations)
 - [Performance](#performance)
@@ -221,10 +221,10 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
-    
+
     - name: Install Nomad
       run: pip install nomad-notion-automation
-    
+
     - name: Process Tasks
       env:
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
@@ -251,7 +251,7 @@ jobs:
 ### Q: How much do API calls cost?
 **A:** Costs vary by provider and usage:
 - **OpenAI GPT-3.5-turbo**: ~$0.002 per task
-- **OpenAI GPT-4**: ~$0.02-0.06 per task  
+- **OpenAI GPT-4**: ~$0.02-0.06 per task
 - **Anthropic Claude**: ~$0.01-0.05 per task
 - **OpenRouter**: Varies by model chosen
 
@@ -346,17 +346,17 @@ source ~/.bashrc
    ```bash
    # Create service file
    sudo nano /etc/systemd/system/nomad.service
-   
+
    # Add service configuration
    [Unit]
    Description=Nomad Task Processor
-   
+
    [Service]
    ExecStart=/usr/local/bin/nomad
    Restart=always
    User=nomad
    Environment=NOMAD_CONFIG_FILE=/etc/nomad/config.env
-   
+
    [Install]
    WantedBy=multi-user.target
    ```

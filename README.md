@@ -1,42 +1,66 @@
-# Nomad - Notion Task Automation Tool
+# N0MAD - Notion Orchestrated Management & Autonomous Developer
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-0.0.1-green.svg)](https://pypi.org/project/n0mad/)
 
-A powerful, globally-installable command-line tool for automating Notion task processing with AI integration. Supports OpenAI, Anthropic, and OpenRouter for intelligent task refinement and automation.
+**N0MAD** is an AI-powered autonomous developer that seamlessly integrates with Notion to provide intelligent task management, automated development workflows, and collaborative AI assistance. Built with support for Claude, OpenAI, Anthropic, and other leading AI providers.
+
+## 🤖 What is N0MAD?
+
+**N0MAD** stands for **"Notion Orchestrated Management & Autonomous Developer"** - a revolutionary tool that transforms your Notion workspace into an intelligent development command center. N0MAD doesn't just manage tasks; it actively participates in development as an autonomous AI developer.
+
+### Key Capabilities
+
+- 🧠 **Autonomous Development**: AI that writes, refactors, and improves code
+- 📊 **Intelligent Task Orchestration**: Smart task prioritization and workflow management
+- 🔄 **Seamless Notion Integration**: Native integration with your existing Notion workspace
+- 🚀 **Multi-AI Provider Support**: Claude, OpenAI, Anthropic, and OpenRouter
+- 🛡️ **Enterprise Security**: Production-ready security and configuration management
+- 📈 **Performance Monitoring**: Built-in analytics and performance tracking
 
 ## 🚀 Features
 
-- **Global Installation**: Install once, use anywhere on your system
+- **Global Installation**: Install once, use anywhere on your system with `pip install n0mad`
 - **Multi-AI Provider Support**: OpenAI, Anthropic Claude, and OpenRouter integration
+- **Autonomous Code Generation**: AI that actually writes and improves code
 - **Secure Configuration**: Environment variable management with validation and security checks
 - **Directory Independence**: Run from any directory with automatic path resolution
 - **Comprehensive CLI**: Rich command-line interface with configuration management
 - **Task Processing Modes**: Multiple modes for different workflow requirements
 - **Robust Error Handling**: Comprehensive logging and error recovery
 - **Performance Monitoring**: Built-in performance tracking and metrics
+- **Pre-commit Integration**: Automated code quality and formatting
 
 ## 📦 Quick Installation
 
-### Automatic Installation (Recommended)
+### 🚀 Standalone Installation (No pip required)
 
+**One-line install:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/nomad-notion-automation/nomad/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/ddcodepl/n0mad/master/quick-install.sh | bash
 ```
 
-### Manual Installation
+- ✅ **No pip required** - Creates self-contained installation
+- ✅ **Complete isolation** - Uses its own virtual environment
+- ✅ **Auto-dependency handling** - Installs Python, git, curl if needed
+- ✅ **Works everywhere** - Linux, macOS, Windows (WSL)
+
+### 📦 Pip Installation
 
 ```bash
-pip install nomad-notion-automation
+pip install n0mad
 ```
 
-### Development Installation
+### 🛠️ Development Installation
 
 ```bash
-git clone https://github.com/nomad-notion-automation/nomad.git
-cd nomad
+git clone https://github.com/ddcodepl/n0mad.git
+cd n0mad
 pip install -e .
 ```
+
+**📋 See [Standalone Installation Guide](STANDALONE_INSTALL.md) for detailed instructions**
 
 ## ⚙️ Configuration
 
@@ -44,17 +68,17 @@ pip install -e .
 
 1. **Get configuration help:**
    ```bash
-   nomad --config-help
+   n0mad --config-help
    ```
 
 2. **Create configuration template:**
    ```bash
-   nomad --config-create
+   n0mad --config-create
    ```
 
 3. **Check configuration status:**
    ```bash
-   nomad --config-status
+   n0mad --config-status
    ```
 
 ### Required Environment Variables
@@ -76,8 +100,8 @@ pip install -e .
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NOMAD_HOME` | Base directory for Nomad files | `~/.nomad` |
-| `NOMAD_TASKS_DIR` | Directory for task files | `~/.nomad/tasks` |
+| `NOMAD_HOME` | Base directory for N0MAD files | `~/.nomad` |
+| `NOMAD_TASKS_DIR` | Directory for task files | `./tasks` |
 | `NOMAD_LOG_LEVEL` | Logging level | `INFO` |
 | `NOMAD_MAX_CONCURRENT_TASKS` | Max concurrent task processing | `3` |
 | `NOMAD_CONFIG_FILE` | Path to global config file | `~/.nomad/config.env` |
@@ -102,7 +126,7 @@ OPENAI_API_KEY=your_openai_key_here
 #### 3. Global Configuration File
 ```bash
 # Create template
-nomad --config-create
+n0mad --config-create
 
 # Edit the created file at ~/.nomad/config.env
 # Set environment variable to use it
@@ -142,45 +166,45 @@ export NOMAD_CONFIG_FILE=~/.nomad/config.env
 
 ```bash
 # Show help
-nomad --help
+n0mad --help
 
 # Show version
-nomad --version
+n0mad --version
 
 # Configuration management
-nomad --config-help          # Show configuration help
-nomad --config-create        # Create configuration template
-nomad --config-status        # Show current configuration status
+n0mad --config-help          # Show configuration help
+n0mad --config-create        # Create configuration template
+n0mad --config-status        # Show current configuration status
 ```
 
 ### Processing Modes
 
 ```bash
 # Continuous polling mode (default)
-nomad
+n0mad
 
 # Process 'To Refine' status tasks
-nomad --refine
+n0mad --refine
 
 # Process 'Prepare Tasks' status
-nomad --prepare
+n0mad --prepare
 
 # Process 'Queued to run' status tasks
-nomad --queued
+n0mad --queued
 
 # Multi-status processing mode
-nomad --multi
+n0mad --multi
 ```
 
 ### Advanced Options
 
 ```bash
 # Set working directory
-nomad --working-dir /path/to/project
+n0mad --working-dir /path/to/project
 
 # Run from any directory
 cd /anywhere
-nomad --config-status
+n0mad --config-status
 ```
 
 ## 🔧 Development
@@ -194,8 +218,8 @@ nomad --config-status
 
 ```bash
 # Clone repository
-git clone https://github.com/nomad-notion-automation/nomad.git
-cd nomad
+git clone https://github.com/ddcodepl/n0mad.git
+cd n0mad
 
 # Install in development mode
 pip install -e .
@@ -217,13 +241,17 @@ mypy .
 ### Project Structure
 
 ```
-nomad/
-├── clients/              # API client implementations
-├── core/                 # Core processing logic
-├── entry/                # CLI entry point
-├── utils/                # Utility modules
+n0mad/
+├── src/                  # Source code
+│   ├── clients/          # API client implementations
+│   ├── core/             # Core processing logic
+│   ├── entry/            # CLI entry point
+│   └── utils/            # Utility modules
+├── tasks/                # Task storage (root level)
+│   ├── tasks/            # Individual task files
+│   ├── summary/          # Task summaries
+│   └── refined/          # Refined task files
 ├── tests/                # Test suite
-├── install.sh            # Installation script
 ├── pyproject.toml        # Package configuration
 └── README.md             # This file
 ```
@@ -251,36 +279,36 @@ nomad/
 #### Installation Problems
 
 ```bash
-# If nomad command not found after installation
+# If n0mad command not found after installation
 export PATH=$PATH:~/.local/bin
 
 # Check if installation succeeded
-pip show nomad-notion-automation
+pip show n0mad
 ```
 
 #### Configuration Issues
 
 ```bash
 # Check configuration status
-nomad --config-status
+n0mad --config-status
 
 # Validate configuration
-nomad --config-help
+n0mad --config-help
 
 # Test from different directory
-cd /tmp && nomad --version
+cd /tmp && n0mad --version
 ```
 
 #### API Connection Problems
 
 ```bash
 # Check API key formats
-nomad --config-status
+n0mad --config-status
 
 # Test with minimal configuration
-nomad --config-create
+n0mad --config-create
 # Edit config file and test
-nomad --config-status
+n0mad --config-status
 ```
 
 ### Debug Mode
@@ -288,29 +316,45 @@ nomad --config-status
 Enable debug logging:
 ```bash
 export NOMAD_LOG_LEVEL=DEBUG
-nomad --config-status
+n0mad --config-status
 ```
 
 ### Getting Help
 
-1. Check configuration: `nomad --config-status`
+1. Check configuration: `n0mad --config-status`
 2. Review logs in `~/.nomad/logs/`
 3. Consult this documentation
-4. [Open an issue](https://github.com/nomad-notion-automation/nomad/issues)
+4. [Open an issue](https://github.com/ddcodepl/n0mad/issues)
 
 ## 📝 Changelog
 
-### v0.2.0
-- Global installation support
-- Enhanced security and configuration management
-- Multi-provider AI integration
-- Comprehensive CLI interface
-- Directory-independent execution
+### v0.0.1
+- 🎉 **Initial N0MAD Release**
+- ✨ Rebranded from nomad-notion-automation to N0MAD
+- 🤖 **Autonomous Developer Capabilities**: AI that writes and improves code
+- 📦 **pip install n0mad**: Simple installation via PyPI
+- 🏗️ **Enhanced Architecture**: Improved codebase organization
+- 🛡️ **Production Security**: Enterprise-grade security implementation
+- 📊 **Performance Monitoring**: Built-in performance tracking
+- 🔧 **Pre-commit Integration**: Automated code quality
+- 📁 **Root Task Storage**: Tasks now stored in project root for better organization
 
-### v0.1.0
-- Initial release
-- Basic Notion integration
-- OpenAI processing
+## 🚀 Automated Releases
+
+N0MAD uses GitHub Actions for automated versioning and PyPI deployment:
+
+### 🔄 Automatic Releases
+- **Trigger**: Push to `master` branch
+- **Version**: Automatic patch version bump (e.g., 0.0.1 → 0.0.2)
+- **Process**: Build → Test → Tag → Release → Deploy to PyPI
+
+### 🎯 Manual Releases
+- **Trigger**: Manual workflow dispatch
+- **Version**: Choose patch/minor/major bump
+- **Options**: Create pre-releases for testing
+
+### 📦 Latest Version
+Check the latest release: [GitHub Releases](https://github.com/ddcodepl/n0mad/releases)
 
 ## 🤝 Contributing
 
@@ -319,6 +363,11 @@ nomad --config-status
 3. Make your changes
 4. Add tests
 5. Submit a pull request
+
+### 🔧 Development Workflow
+- Push to `master` automatically creates new releases
+- All tests must pass before deployment
+- Version bumping is handled automatically
 
 ## 📄 License
 
@@ -333,4 +382,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ by the Nomad Development Team**
+**Made with ❤️ by the N0MAD Development Team**
+
+*N0MAD: Where AI meets productivity. Transform your Notion workspace into an intelligent development ecosystem.*

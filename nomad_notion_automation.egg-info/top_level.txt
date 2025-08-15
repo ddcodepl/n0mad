@@ -1,5 +1,0 @@
-clients
-core
-entry
-tests
-utils

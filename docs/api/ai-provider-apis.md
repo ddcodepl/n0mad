@@ -563,11 +563,11 @@ import hashlib
 class CachedAIClient:
     def __init__(self, client):
         self.client = client
-        
+
     @lru_cache(maxsize=128)
     def process_content_cached(self, content_hash, content, task_type):
         return self.client.process_content(content, task_type)
-    
+
     def process_content(self, content, task_type="general"):
         content_hash = hashlib.md5(content.encode()).hexdigest()
         return self.process_content_cached(content_hash, content, task_type)
@@ -586,7 +586,7 @@ from nomad.clients import OpenAIClient, ClaudeEngineInvoker
 
 def refine_task_content(task_content, task_context):
     """Complete task refinement workflow using multiple AI providers."""
-    
+
     # Step 1: Initial analysis with Claude
     claude = ClaudeEngineInvoker()
     analysis = claude.invoke_claude_engine(
@@ -594,7 +594,7 @@ def refine_task_content(task_content, task_context):
         task_type="analysis",
         context=task_context
     )
-    
+
     # Step 2: Content enhancement with GPT-4
     openai = OpenAIClient(model="gpt-4")
     enhanced = openai.process_content(
@@ -605,14 +605,14 @@ def refine_task_content(task_content, task_context):
             **task_context
         }
     )
-    
+
     # Step 3: Quality validation
     validation = claude.invoke_claude_engine(
         content=enhanced["processed_content"],
         task_type="validation",
         context={"original_content": task_content}
     )
-    
+
     return {
         "original": task_content,
         "enhanced": enhanced["processed_content"],
@@ -641,34 +641,34 @@ result = refine_task_content(
 ```python
 def generate_comprehensive_content(topic, requirements):
     """Generate content using multiple providers for different aspects."""
-    
+
     providers = {
         "outline": OpenAIClient(model="gpt-4"),
         "content": ClaudeEngineInvoker(),
         "review": OpenRouterClient()
     }
-    
+
     # Generate outline
     outline = providers["outline"].generate_content(
         prompt=f"Create detailed outline for: {topic}",
         content_type="outline",
         requirements=requirements
     )
-    
+
     # Generate full content
     content = providers["content"].invoke_claude_engine(
         content=outline["result"],
         task_type="content_generation",
         context={"topic": topic, "requirements": requirements}
     )
-    
+
     # Peer review
     review = providers["review"].process_content(
         content=content["result"],
         model="anthropic/claude-3-sonnet",
         provider_preferences=["anthropic"]
     )
-    
+
     return {
         "outline": outline,
         "content": content,

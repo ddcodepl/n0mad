@@ -1,3 +1,0 @@
-[console_scripts]
-nomad = entry.main:main
-nomad-config = entry.main:main

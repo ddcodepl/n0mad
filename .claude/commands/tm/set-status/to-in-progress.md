@@ -16,7 +16,7 @@ This command does more than just change status - it prepares your environment fo
 ## Execution
 
 ```bash
-taskmaster set-status --id=$ARGUMENTS --status=in-progress
+task-master set-status --id=$ARGUMENTS --status=in-progress
 ```
 
 ## Environment Setup

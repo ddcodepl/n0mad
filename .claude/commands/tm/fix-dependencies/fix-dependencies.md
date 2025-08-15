@@ -7,7 +7,7 @@ Intelligently fixes common dependency problems while preserving project logic.
 ## Execution
 
 ```bash
-taskmaster fix-dependencies
+task-master fix-dependencies
 ```
 
 ## What Gets Fixed

@@ -1,0 +1,223 @@
+name: 🎯 Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+      pre_release:
+        description: 'Create as pre-release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  manual-release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: 📦 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine setuptools wheel packaging
+
+    - name: 🔍 Get current version
+      id: current_version
+      run: |
+        CURRENT_VERSION=$(python -c "
+        import re
+        with open('pyproject.toml', 'r') as f:
+            content = f.read()
+        match = re.search(r'version = \"([^\"]+)\"', content)
+        if match:
+            print(match.group(1))
+        else:
+            print('0.0.0')
+        ")
+        echo "Current version: $CURRENT_VERSION"
+        echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+    - name: ⬆️ Bump version (${{ github.event.inputs.version_type }})
+      id: bump_version
+      run: |
+        python -c "
+        import re
+        from packaging.version import Version
+
+        # Read current version
+        with open('pyproject.toml', 'r') as f:
+            content = f.read()
+
+        match = re.search(r'version = \"([^\"]+)\"', content)
+        if match:
+            current_version = Version(match.group(1))
+
+            # Bump version based on input
+            version_type = '${{ github.event.inputs.version_type }}'
+            if version_type == 'major':
+                new_version = Version(f'{current_version.major + 1}.0.0')
+            elif version_type == 'minor':
+                new_version = Version(f'{current_version.major}.{current_version.minor + 1}.0')
+            else:  # patch
+                new_version = Version(f'{current_version.major}.{current_version.minor}.{current_version.micro + 1}')
+        else:
+            new_version = Version('0.0.1')
+
+        print(f'Bumping version from {current_version if match else \"0.0.0\"} to {new_version} (${{ github.event.inputs.version_type }})')
+
+        # Update pyproject.toml
+        new_content = re.sub(
+            r'version = \"[^\"]+\"',
+            f'version = \"{new_version}\"',
+            content
+        )
+
+        with open('pyproject.toml', 'w') as f:
+            f.write(new_content)
+
+        # Update src/__init__.py
+        with open('src/__init__.py', 'r') as f:
+            init_content = f.read()
+
+        new_init_content = re.sub(
+            r'__version__ = \"[^\"]+\"',
+            f'__version__ = \"{new_version}\"',
+            init_content
+        )
+
+        with open('src/__init__.py', 'w') as f:
+            f.write(new_init_content)
+
+        # Update entry/main.py version string
+        with open('src/entry/main.py', 'r') as f:
+            main_content = f.read()
+
+        new_main_content = re.sub(
+            r'version=\"N0MAD v[^\"]+\"',
+            f'version=\"N0MAD v{new_version} - Notion Orchestrated Management & Autonomous Developer\"',
+            main_content
+        )
+
+        with open('src/entry/main.py', 'w') as f:
+            f.write(new_main_content)
+
+        print(f'{new_version}')
+        "
+
+        NEW_VERSION=$(python -c "
+        import re
+        with open('pyproject.toml', 'r') as f:
+            content = f.read()
+        match = re.search(r'version = \"([^\"]+)\"', content)
+        print(match.group(1))
+        ")
+
+        echo "New version: $NEW_VERSION"
+        echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+    - name: 🏗️ Build package
+      run: |
+        python -m build
+
+    - name: 🧪 Test package installation
+      run: |
+        pip install dist/*.whl
+        n0mad --version
+
+    - name: 📝 Commit version bump
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add pyproject.toml src/__init__.py src/entry/main.py
+        git commit -m "🔖 Manual release: Bump version to ${{ steps.bump_version.outputs.version }} (${{ github.event.inputs.version_type }})" || exit 0
+        git push
+
+    - name: 🏷️ Create release tag
+      run: |
+        git tag "v${{ steps.bump_version.outputs.version }}"
+        git push origin "v${{ steps.bump_version.outputs.version }}"
+
+    - name: 📋 Generate changelog
+      id: changelog
+      run: |
+        # Get commits since last tag
+        LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+
+        if [ -n "$LAST_TAG" ]; then
+          COMMITS=$(git log --pretty=format:"- %s (%h)" $LAST_TAG..HEAD)
+        else
+          COMMITS=$(git log --pretty=format:"- %s (%h)" --max-count=10)
+        fi
+
+        CHANGELOG="## 🚀 What's Changed in v${{ steps.bump_version.outputs.version }}
+
+        **Release Type**: ${{ github.event.inputs.version_type }} release
+
+        $COMMITS
+
+        ## 📦 Installation
+
+        \`\`\`bash
+        pip install n0mad==${{ steps.bump_version.outputs.version }}
+        \`\`\`
+
+        **Full Changelog**: https://github.com/ddcodepl/n0mad/compare/${LAST_TAG}...v${{ steps.bump_version.outputs.version }}"
+
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: 🎉 Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: "v${{ steps.bump_version.outputs.version }}"
+        release_name: "N0MAD v${{ steps.bump_version.outputs.version }}"
+        body: ${{ steps.changelog.outputs.changelog }}
+        draft: false
+        prerelease: ${{ github.event.inputs.pre_release }}
+
+    - name: 📤 Deploy to PyPI
+      if: ${{ !github.event.inputs.pre_release }}
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        python -m twine upload dist/* --verbose
+
+    - name: ✅ Deployment Summary
+      run: |
+        echo "🎉 Successfully created N0MAD v${{ steps.bump_version.outputs.version }} release!"
+        echo "🔧 Release Type: ${{ github.event.inputs.version_type }}"
+        echo "🏷️ Release: https://github.com/ddcodepl/n0mad/releases/tag/v${{ steps.bump_version.outputs.version }}"
+        if [ "${{ github.event.inputs.pre_release }}" != "true" ]; then
+          echo "📦 Package: https://pypi.org/project/n0mad/${{ steps.bump_version.outputs.version }}/"
+          echo ""
+          echo "🚀 Users can now install with:"
+          echo "pip install n0mad==${{ steps.bump_version.outputs.version }}"
+        else
+          echo "⚠️  Pre-release created - not deployed to PyPI"
+        fi

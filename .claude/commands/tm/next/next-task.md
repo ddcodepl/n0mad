@@ -58,9 +58,9 @@ Always provide options:
 ### 5. **Workflow Integration**
 
 Seamlessly connect to:
-- `/project:taskmaster:start [selected]` 
+- `/project:task-master:start [selected]`
 - `/project:workflows:auto-implement`
-- `/project:taskmaster:expand` (if complex)
+- `/project:task-master:expand` (if complex)
 - `/project:utils:complexity-report` (if unsure)
 
 The goal: Zero friction from decision to implementation.

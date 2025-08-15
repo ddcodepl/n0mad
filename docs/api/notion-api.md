@@ -63,16 +63,16 @@ Main class for Notion API operations.
 
 ```python
 def __init__(
-    self, 
-    token: Optional[str] = None, 
-    database_id: Optional[str] = None, 
+    self,
+    token: Optional[str] = None,
+    database_id: Optional[str] = None,
     max_retries: int = 3
 ) -> None
 ```
 
 **Parameters:**
 - `token` (optional): Notion API token. If None, uses `NOTION_TOKEN` environment variable
-- `database_id` (optional): Database ID. If None, uses `NOTION_BOARD_DB` environment variable  
+- `database_id` (optional): Database ID. If None, uses `NOTION_BOARD_DB` environment variable
 - `max_retries`: Maximum retry attempts for failed API calls
 
 **Example:**
@@ -178,8 +178,8 @@ Convenience method to query pages by status property.
 
 ```python
 def query_tickets_by_status(
-    self, 
-    status: str, 
+    self,
+    status: str,
     include_all_pages: bool = True
 ) -> List[Dict[str, Any]]
 ```
@@ -309,8 +309,8 @@ Updates the content of a page with new blocks.
 ```python
 def update_page_content(
     self,
-    page_id: str, 
-    content: str, 
+    page_id: str,
+    content: str,
     status: str = None,
     shutdown_flag: callable = None
 ) -> None
@@ -354,8 +354,8 @@ Updates status for multiple pages in a single operation.
 
 ```python
 def update_tickets_status_batch(
-    self, 
-    page_ids: List[str], 
+    self,
+    page_ids: List[str],
     new_status: str
 ) -> Dict[str, Any]
 ```
@@ -384,7 +384,7 @@ Uploads files to the "Tasks" property of multiple pages.
 
 ```python
 def upload_tasks_files_to_pages(
-    self, 
+    self,
     ticket_data_with_files: List[Dict[str, Any]]
 ) -> Dict[str, Any]
 ```
@@ -403,7 +403,7 @@ upload_data = [
         "tasks_file_path": "/path/to/tasks.json"
     },
     {
-        "ticket_id": "TASK-124", 
+        "ticket_id": "TASK-124",
         "page_id": "page_id_124",
         "tasks_file_path": "/path/to/tasks2.json"
     }
@@ -479,9 +479,9 @@ def extract_property_value(page, property_name):
     prop = page['properties'].get(property_name)
     if not prop:
         return None
-    
+
     prop_type = prop['type']
-    
+
     if prop_type == 'title':
         return prop['title'][0]['plain_text'] if prop['title'] else ""
     elif prop_type == 'rich_text':
@@ -518,7 +518,7 @@ import asyncio
 async def process_pages_async():
     # The wrapper handles async operations internally
     # for content updates and bulk operations
-    
+
     # Large content updates are processed asynchronously
     await notion.update_page_content(
         page_id=page_id,
@@ -540,20 +540,20 @@ notion.update_tickets_status_batch(page_ids, "Processing")
 def get_all_pages():
     all_pages = []
     start_cursor = None
-    
+
     while True:
         result = notion.query_database(
             start_cursor=start_cursor,
             page_size=100  # Maximum allowed
         )
-        
+
         all_pages.extend(result['results'])
-        
+
         if not result.get('has_more'):
             break
-            
+
         start_cursor = result['next_cursor']
-    
+
     return all_pages
 ```
 
@@ -633,7 +633,7 @@ for prop_name, prop_config in schema['properties'].items():
 - Verify integration has access to the workspace
 - Ensure database is shared with the integration
 
-#### "object_not_found" Error  
+#### "object_not_found" Error
 - Verify `NOTION_BOARD_DB` is correct
 - Check if database exists and is accessible
 - Ensure integration has permission to access the database

@@ -7,7 +7,7 @@ Intelligently expands all tasks that would benefit from breakdown.
 ## Execution
 
 ```bash
-taskmaster expand --all
+task-master expand --all
 ```
 
 ## Smart Selection

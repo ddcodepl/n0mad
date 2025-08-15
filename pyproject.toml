@@ -3,16 +3,16 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nomad-notion-automation"
-version = "0.2.0"
-description = "Global Notion task refinement and automation tool with AI integration"
+name = "n0mad"
+version = "0.0.1"
+description = "N0MAD: Notion Orchestrated Management & Autonomous Developer - AI-powered Notion automation with autonomous development capabilities"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "Nomad Development Team"},
+    {name = "N0MAD Development Team"},
 ]
 maintainers = [
-    {name = "Nomad Development Team"},
+    {name = "N0MAD Development Team"},
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -28,7 +28,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Utilities",
 ]
-keywords = ["notion", "automation", "ai", "task-management", "openai", "anthropic"]
+keywords = ["n0mad", "notion", "automation", "ai", "autonomous-developer", "task-management", "openai", "anthropic", "claude"]
 requires-python = ">=3.8.1"
 dependencies = [
     "aiohttp>=3.9.0",
@@ -56,18 +56,22 @@ test = [
 ]
 
 [project.scripts]
-nomad = "entry.main:main"
-nomad-config = "entry.main:main"
+n0mad = "src.entry.main:main"
+nomad = "src.entry.main:main"
+nomad-config = "src.entry.main:main"
 
 [project.urls]
-Homepage = "https://github.com/nomad-notion-automation/nomad"
-Repository = "https://github.com/nomad-notion-automation/nomad.git"
-Documentation = "https://github.com/nomad-notion-automation/nomad/blob/main/README.md"
-"Bug Tracker" = "https://github.com/nomad-notion-automation/nomad/issues"
+Homepage = "https://github.com/ddcodepl/n0mad"
+Repository = "https://github.com/ddcodepl/n0mad.git"
+Documentation = "https://github.com/ddcodepl/n0mad/blob/main/README.md"
+"Bug Tracker" = "https://github.com/ddcodepl/n0mad/issues"
 
 [tool.setuptools]
-packages = ["clients", "core", "entry", "utils", "tests"]
 include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md", "*.yml", "*.yaml", "*.json"]
@@ -76,7 +80,7 @@ include-package-data = true
 "*" = ["*.pyc", "*.pyo", "__pycache__", "*.log"]
 
 [tool.black]
-line-length = 100
+line-length = 160
 target-version = ['py39', 'py310', 'py311', 'py312']
 include = '\.pyi?$'
 extend-exclude = '''
@@ -96,7 +100,11 @@ extend-exclude = '''
 [tool.isort]
 profile = "black"
 multi_line_output = 3
-line_length = 100
+line_length = 160
+
+[tool.flake8]
+max-line-length = 160
+ignore = ["E203", "W503", "E501", "F541"]
 
 [tool.mypy]
 python_version = "3.9"

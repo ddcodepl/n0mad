@@ -61,7 +61,7 @@ The implemented features can be configured through:
 
 ### Basic Usage
 1. **Import the necessary modules** in your Python code
-2. **Configure the settings** according to your requirements  
+2. **Configure the settings** according to your requirements
 3. **Initialize the components** with appropriate parameters
 4. **Use the implemented functionality** as documented in the code
 

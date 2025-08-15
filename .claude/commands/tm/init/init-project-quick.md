@@ -7,7 +7,7 @@ Initialize a Task Master project without prompts, accepting all defaults.
 ## Quick Setup
 
 ```bash
-taskmaster init -y
+task-master init -y
 ```
 
 ## What It Does

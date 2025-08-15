@@ -19,7 +19,7 @@ Parse natural language or IDs:
 ## Execution
 
 ```bash
-taskmaster add-dependency --id=<task-id> --depends-on=<dependency-id>
+task-master add-dependency --id=<task-id> --depends-on=<dependency-id>
 ```
 
 ## Validation

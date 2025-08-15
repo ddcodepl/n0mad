@@ -7,7 +7,7 @@ Creates separate markdown files for each task, perfect for AI agents or document
 ## Execution
 
 ```bash
-taskmaster generate
+task-master generate
 ```
 
 ## What It Creates

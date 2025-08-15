@@ -19,7 +19,7 @@ Natural language updates:
 ## Execution
 
 ```bash
-taskmaster update-task --id=<id> --prompt="<context>"
+task-master update-task --id=<id> --prompt="<context>"
 ```
 
 ## Update Types

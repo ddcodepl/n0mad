@@ -1,7 +1,14 @@
 #!/bin/bash
 
-# Nomad Global Installation Script
-# Installs nomad-notion-automation package globally with pip
+# N0MAD Standalone Installation Script
+# Installs N0MAD without requiring pip, creating a portable installation
+#
+# Usage:
+#   curl -sSL https://raw.githubusercontent.com/ddcodepl/n0mad/master/install.sh | bash
+#   or
+#   wget -qO- https://raw.githubusercontent.com/ddcodepl/n0mad/master/install.sh | bash
+#   or
+#   bash install.sh
 
 set -e  # Exit on any error
 
@@ -10,9 +17,28 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
+# Configuration
+N0MAD_VERSION="latest"
+INSTALL_DIR="$HOME/.n0mad"
+BIN_DIR="$HOME/.local/bin"
+VENV_DIR="$INSTALL_DIR/venv"
+SOURCE_DIR="$INSTALL_DIR/source"
+REPO_URL="https://github.com/ddcodepl/n0mad"
+
 # Function to print colored output
+print_header() {
+    echo -e "${PURPLE}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${PURPLE}║${WHITE}                           N0MAD STANDALONE INSTALLER                           ${PURPLE}║${NC}"
+    echo -e "${PURPLE}║${CYAN}        Notion Orchestrated Management & Autonomous Developer                 ${PURPLE}║${NC}"
+    echo -e "${PURPLE}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+}
+
 print_status() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
@@ -29,210 +55,450 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+print_step() {
+    echo -e "${CYAN}[STEP]${NC} $1"
+}
+
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Function to detect OS
+detect_os() {
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "linux"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macos"
+    elif [[ "$OSTYPE" == "cygwin" || "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+        echo "windows"
+    else
+        echo "unknown"
+    fi
+}
+
+# Function to detect Linux distribution
+detect_linux_distro() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        echo $ID
+    elif [ -f /etc/redhat-release ]; then
+        echo "rhel"
+    elif [ -f /etc/debian_version ]; then
+        echo "debian"
+    else
+        echo "unknown"
+    fi
+}
+
 # Function to check Python version
 check_python() {
-    if command_exists python3; then
-        PYTHON_CMD="python3"
-        PIP_CMD="pip3"
-    elif command_exists python; then
-        PYTHON_CMD="python"
-        PIP_CMD="pip"
-    else
-        print_error "Python is not installed. Please install Python 3.8 or higher."
+    print_step "Checking Python installation..."
+
+    local python_cmd=""
+    local python_version=""
+
+    # Try different Python commands
+    for cmd in python3 python python3.11 python3.10 python3.9 python3.8; do
+        if command_exists "$cmd"; then
+            version=$($cmd --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            major=$(echo $version | cut -d. -f1)
+            minor=$(echo $version | cut -d. -f2)
+
+            if [ "$major" -eq 3 ] && [ "$minor" -ge 8 ]; then
+                python_cmd="$cmd"
+                python_version="$version"
+                break
+            fi
+        fi
+    done
+
+    if [ -z "$python_cmd" ]; then
+        print_error "Python 3.8+ is required but not found."
+        print_status "Please install Python 3.8 or higher and try again."
+
+        local os=$(detect_os)
+        case $os in
+            "linux")
+                local distro=$(detect_linux_distro)
+                case $distro in
+                    "ubuntu"|"debian")
+                        print_status "Install with: sudo apt update && sudo apt install python3 python3-venv python3-pip"
+                        ;;
+                    "fedora"|"rhel"|"centos")
+                        print_status "Install with: sudo dnf install python3 python3-venv python3-pip"
+                        ;;
+                    "arch")
+                        print_status "Install with: sudo pacman -S python python-pip"
+                        ;;
+                esac
+                ;;
+            "macos")
+                print_status "Install with Homebrew: brew install python3"
+                print_status "Or download from: https://www.python.org/downloads/"
+                ;;
+            "windows")
+                print_status "Download from: https://www.python.org/downloads/"
+                ;;
+        esac
         exit 1
     fi
-    
-    # Check Python version
-    PYTHON_VERSION=$($PYTHON_CMD -c "import sys; print('.'.join(map(str, sys.version_info[:2])))")
-    PYTHON_MAJOR=$($PYTHON_CMD -c "import sys; print(sys.version_info[0])")
-    PYTHON_MINOR=$($PYTHON_CMD -c "import sys; print(sys.version_info[1])")
-    
-    if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 8 ]); then
-        print_error "Python 3.8 or higher is required. Found Python $PYTHON_VERSION"
-        exit 1
-    fi
-    
-    print_success "Python $PYTHON_VERSION found"
+
+    print_success "Found Python $python_version at $(which $python_cmd)"
+    echo "$python_cmd"
 }
 
-# Function to install package
-install_package() {
-    print_status "Installing nomad-notion-automation package..."
-    
-    # Check if we're in a virtual environment
-    if [[ -n "$VIRTUAL_ENV" ]]; then
-        print_warning "Installing in virtual environment: $VIRTUAL_ENV"
-    else
-        print_status "Installing globally (use --user if you don't have sudo access)"
-    fi
-    
-    # Install from local directory if we're in the source directory
-    if [[ -f "pyproject.toml" && -f "entry/main.py" ]]; then
-        print_status "Installing from local source directory..."
-        if [[ -n "$VIRTUAL_ENV" ]]; then
-            $PIP_CMD install -e .
-        else
-            $PIP_CMD install -e . --user
-        fi
-    else
-        # Install from package (would be from PyPI in real deployment)
-        print_status "Installing from package..."
-        if [[ -n "$VIRTUAL_ENV" ]]; then
-            $PIP_CMD install nomad-notion-automation
-        else
-            $PIP_CMD install nomad-notion-automation --user
-        fi
-    fi
+# Function to install system dependencies
+install_system_deps() {
+    local os=$(detect_os)
+
+    print_step "Installing system dependencies..."
+
+    case $os in
+        "linux")
+            local distro=$(detect_linux_distro)
+            case $distro in
+                "ubuntu"|"debian")
+                    if ! command_exists git; then
+                        print_status "Installing git..."
+                        sudo apt update && sudo apt install -y git
+                    fi
+                    if ! command_exists curl; then
+                        print_status "Installing curl..."
+                        sudo apt install -y curl
+                    fi
+                    ;;
+                "fedora"|"rhel"|"centos")
+                    if ! command_exists git; then
+                        print_status "Installing git..."
+                        sudo dnf install -y git
+                    fi
+                    if ! command_exists curl; then
+                        print_status "Installing curl..."
+                        sudo dnf install -y curl
+                    fi
+                    ;;
+                "arch")
+                    if ! command_exists git; then
+                        print_status "Installing git..."
+                        sudo pacman -S --noconfirm git
+                    fi
+                    if ! command_exists curl; then
+                        print_status "Installing curl..."
+                        sudo pacman -S --noconfirm curl
+                    fi
+                    ;;
+            esac
+            ;;
+        "macos")
+            if ! command_exists git; then
+                print_status "Please install Xcode Command Line Tools: xcode-select --install"
+                exit 1
+            fi
+            ;;
+    esac
+
+    print_success "System dependencies ready"
 }
 
-# Function to verify installation
-verify_installation() {
-    print_status "Verifying installation..."
-    
-    if command_exists nomad; then
-        print_success "nomad command is available"
-        
-        # Test basic functionality
-        NOMAD_VERSION=$(nomad --version 2>/dev/null || echo "Version check failed")
-        print_status "Version: $NOMAD_VERSION"
-        
-        # Test configuration system
-        print_status "Testing configuration system..."
-        nomad --config-help >/dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            print_success "Configuration system working"
-        else
-            print_warning "Configuration system test failed (this is expected without API keys)"
-        fi
-        
+# Function to create directories
+create_directories() {
+    print_step "Creating installation directories..."
+
+    mkdir -p "$INSTALL_DIR"
+    mkdir -p "$BIN_DIR"
+    mkdir -p "$SOURCE_DIR"
+
+    print_success "Directories created:"
+    print_status "  Installation: $INSTALL_DIR"
+    print_status "  Binaries: $BIN_DIR"
+    print_status "  Source: $SOURCE_DIR"
+}
+
+# Function to download N0MAD source
+download_source() {
+    print_step "Downloading N0MAD source code..."
+
+    if [ -d "$SOURCE_DIR/.git" ]; then
+        print_status "Updating existing N0MAD installation..."
+        cd "$SOURCE_DIR"
+        git pull origin master
     else
-        print_error "nomad command not found in PATH"
-        print_status "You may need to:"
-        echo "  1. Restart your terminal"
-        echo "  2. Add ~/.local/bin to your PATH"
-        echo "  3. Run: export PATH=\$PATH:~/.local/bin"
+        print_status "Cloning N0MAD repository..."
+        rm -rf "$SOURCE_DIR"
+        git clone "$REPO_URL.git" "$SOURCE_DIR"
+        cd "$SOURCE_DIR"
+
+        if [ "$N0MAD_VERSION" != "latest" ]; then
+            print_status "Checking out version $N0MAD_VERSION..."
+            git checkout "v$N0MAD_VERSION"
+        fi
+    fi
+
+    print_success "Source code downloaded to $SOURCE_DIR"
+}
+
+# Function to create virtual environment
+create_virtual_env() {
+    local python_cmd=$1
+
+    print_step "Creating Python virtual environment..."
+
+    if [ -d "$VENV_DIR" ]; then
+        print_status "Removing existing virtual environment..."
+        rm -rf "$VENV_DIR"
+    fi
+
+    print_status "Creating new virtual environment with $python_cmd..."
+    "$python_cmd" -m venv "$VENV_DIR"
+
+    # Activate virtual environment
+    source "$VENV_DIR/bin/activate"
+
+    # Upgrade pip
+    print_status "Upgrading pip..."
+    "$VENV_DIR/bin/python" -m pip install --upgrade pip
+
+    print_success "Virtual environment created at $VENV_DIR"
+}
+
+# Function to install N0MAD dependencies
+install_dependencies() {
+    print_step "Installing N0MAD dependencies..."
+
+    # Activate virtual environment
+    source "$VENV_DIR/bin/activate"
+
+    cd "$SOURCE_DIR"
+
+    # Install dependencies from pyproject.toml
+    print_status "Installing core dependencies..."
+    "$VENV_DIR/bin/python" -m pip install -e .
+
+    print_success "Dependencies installed successfully"
+}
+
+# Function to create wrapper script
+create_wrapper_script() {
+    print_step "Creating N0MAD wrapper script..."
+
+    local wrapper_script="$BIN_DIR/n0mad"
+
+    cat > "$wrapper_script" << EOF
+#!/bin/bash
+# N0MAD Wrapper Script
+# This script activates the N0MAD virtual environment and runs the command
+
+# Activate N0MAD virtual environment
+source "$VENV_DIR/bin/activate"
+
+# Change to source directory
+cd "$SOURCE_DIR"
+
+# Run N0MAD with all arguments
+exec "$VENV_DIR/bin/python" -m src.entry.main "\$@"
+EOF
+
+    chmod +x "$wrapper_script"
+
+    # Also create nomad symlink for backwards compatibility
+    ln -sf "$wrapper_script" "$BIN_DIR/nomad"
+
+    print_success "Wrapper script created at $wrapper_script"
+}
+
+# Function to update PATH
+update_path() {
+    print_step "Updating PATH configuration..."
+
+    local shell_profile=""
+    local current_shell=$(basename "$SHELL")
+
+    case $current_shell in
+        "bash")
+            if [ -f "$HOME/.bashrc" ]; then
+                shell_profile="$HOME/.bashrc"
+            elif [ -f "$HOME/.bash_profile" ]; then
+                shell_profile="$HOME/.bash_profile"
+            else
+                shell_profile="$HOME/.profile"
+            fi
+            ;;
+        "zsh")
+            shell_profile="$HOME/.zshrc"
+            ;;
+        "fish")
+            shell_profile="$HOME/.config/fish/config.fish"
+            ;;
+        *)
+            shell_profile="$HOME/.profile"
+            ;;
+    esac
+
+    # Check if PATH already contains our bin directory
+    if ! echo "$PATH" | grep -q "$BIN_DIR"; then
+        if [ "$current_shell" = "fish" ]; then
+            echo "set -gx PATH $BIN_DIR \$PATH" >> "$shell_profile"
+        else
+            echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$shell_profile"
+        fi
+
+        print_success "Added $BIN_DIR to PATH in $shell_profile"
+        print_warning "Please restart your terminal or run: source $shell_profile"
+    else
+        print_success "PATH already configured correctly"
+    fi
+
+    # Update current session PATH
+    export PATH="$BIN_DIR:$PATH"
+}
+
+# Function to test installation
+test_installation() {
+    print_step "Testing N0MAD installation..."
+
+    if [ -x "$BIN_DIR/n0mad" ]; then
+        print_status "Testing n0mad command..."
+        if "$BIN_DIR/n0mad" --version >/dev/null 2>&1; then
+            local version_output=$("$BIN_DIR/n0mad" --version 2>&1)
+            print_success "N0MAD is working! $version_output"
+        else
+            print_warning "N0MAD command exists but may have issues"
+        fi
+    else
+        print_error "N0MAD command not found at $BIN_DIR/n0mad"
         return 1
     fi
 }
 
-# Function to setup configuration
-setup_configuration() {
-    print_status "Setting up configuration..."
-    
-    # Create config template
-    nomad --config-create 2>/dev/null || {
-        print_warning "Could not create config template automatically"
-        print_status "You can create it manually later with: nomad --config-create"
-    }
-    
-    print_status "Configuration setup complete"
-    print_status "Edit your configuration file and set your API keys"
-    print_status "Then run: nomad --config-status"
-}
+# Function to create configuration template
+create_config_template() {
+    print_step "Creating configuration template..."
 
-# Function to show post-installation instructions
-show_instructions() {
-    print_success "Installation completed successfully!"
-    echo
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "🎉 Nomad is now installed globally!"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo
-    echo "📋 Next steps:"
-    echo "  1. Configure your API keys:"
-    echo "     nomad --config-help"
-    echo
-    echo "  2. Create configuration template:"
-    echo "     nomad --config-create"
-    echo
-    echo "  3. Check configuration status:"
-    echo "     nomad --config-status"
-    echo
-    echo "  4. Get help:"
-    echo "     nomad --help"
-    echo
-    echo "🔧 Required API Keys:"
-    echo "  • NOTION_TOKEN (required) - Your Notion integration token"
-    echo "  • NOTION_BOARD_DB (required) - Your Notion database ID"
-    echo "  • At least one AI provider key:"
-    echo "    - OPENAI_API_KEY (OpenAI)"
-    echo "    - OPENROUTER_API_KEY (OpenRouter)"
-    echo "    - ANTHROPIC_API_KEY (Anthropic)"
-    echo
-    echo "📚 Documentation: https://github.com/nomad-notion-automation/nomad"
-    echo "🐛 Issues: https://github.com/nomad-notion-automation/nomad/issues"
-    echo
-}
+    local config_dir="$HOME/.n0mad"
+    local config_file="$config_dir/config.env"
 
-# Main installation process
-main() {
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "🚀 Nomad Global Installation Script"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo
-    
-    # Check system requirements
-    print_status "Checking system requirements..."
-    check_python
-    
-    # Check if pip is available
-    if ! command_exists $PIP_CMD; then
-        print_error "pip is not installed. Please install pip first."
-        exit 1
+    mkdir -p "$config_dir"
+
+    if [ ! -f "$config_file" ]; then
+        cat > "$config_file" << EOF
+# N0MAD Configuration File
+# Copy this file and edit with your actual values
+
+# Required: Notion Integration
+NOTION_TOKEN=your_notion_integration_token_here
+NOTION_BOARD_DB=your_notion_database_id_here
+
+# Required: At least one AI provider API key
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+
+# Optional: N0MAD Configuration
+NOMAD_HOME=$HOME/.n0mad
+NOMAD_TASKS_DIR=./tasks
+NOMAD_LOG_LEVEL=INFO
+NOMAD_MAX_CONCURRENT_TASKS=3
+
+# Optional: Global config file path
+NOMAD_CONFIG_FILE=$config_file
+EOF
+
+        chmod 600 "$config_file"
+        print_success "Configuration template created at $config_file"
+        print_status "Edit this file with your API keys and settings"
+    else
+        print_success "Configuration file already exists at $config_file"
     fi
-    
-    print_success "System requirements met"
-    echo
-    
-    # Install package
-    install_package
-    echo
-    
-    # Verify installation
-    verify_installation
-    echo
-    
-    # Setup configuration
-    setup_configuration
-    echo
-    
-    # Show post-installation instructions
-    show_instructions
 }
 
-# Parse command line arguments
-SKIP_VERIFICATION=false
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --skip-verification)
-            SKIP_VERIFICATION=true
-            shift
-            ;;
-        --help)
-            echo "Nomad Installation Script"
-            echo
-            echo "Usage: $0 [options]"
-            echo
-            echo "Options:"
-            echo "  --skip-verification  Skip installation verification"
-            echo "  --help              Show this help message"
-            echo
-            exit 0
-            ;;
-        *)
-            print_error "Unknown option: $1"
-            echo "Use --help for usage information"
-            exit 1
-            ;;
-    esac
-done
+# Function to show completion message
+show_completion() {
+    print_header
+    print_success "🎉 N0MAD installation completed successfully!"
+    echo ""
+    echo -e "${WHITE}📦 Installation Details:${NC}"
+    echo -e "  ${CYAN}Installation Directory:${NC} $INSTALL_DIR"
+    echo -e "  ${CYAN}Executable:${NC} $BIN_DIR/n0mad"
+    echo -e "  ${CYAN}Configuration:${NC} $HOME/.n0mad/config.env"
+    echo ""
+    echo -e "${WHITE}🚀 Next Steps:${NC}"
+    echo -e "  ${GREEN}1.${NC} ${CYAN}Configure your API keys:${NC}"
+    echo -e "     ${YELLOW}edit $HOME/.n0mad/config.env${NC}"
+    echo ""
+    echo -e "  ${GREEN}2.${NC} ${CYAN}Test the installation:${NC}"
+    echo -e "     ${YELLOW}n0mad --version${NC}"
+    echo -e "     ${YELLOW}n0mad --config-status${NC}"
+    echo ""
+    echo -e "  ${GREEN}3.${NC} ${CYAN}Get help:${NC}"
+    echo -e "     ${YELLOW}n0mad --help${NC}"
+    echo -e "     ${YELLOW}n0mad --config-help${NC}"
+    echo ""
+    echo -e "${WHITE}📚 Documentation:${NC}"
+    echo -e "  ${CYAN}GitHub:${NC} https://github.com/ddcodepl/n0mad"
+    echo -e "  ${CYAN}Issues:${NC} https://github.com/ddcodepl/n0mad/issues"
+    echo ""
 
-# Run main installation
-main
+    if ! echo "$PATH" | grep -q "$BIN_DIR"; then
+        echo -e "${YELLOW}⚠️  Please restart your terminal or run:${NC}"
+        echo -e "   ${WHITE}source ~/.bashrc${NC} (or your shell's profile file)"
+        echo ""
+    fi
 
-exit 0
+    echo -e "${PURPLE}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${PURPLE}║${WHITE}                     Welcome to N0MAD - Happy Automating! 🤖                   ${PURPLE}║${NC}"
+    echo -e "${PURPLE}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
+}
+
+# Function to handle cleanup on error
+cleanup_on_error() {
+    print_error "Installation failed. Cleaning up..."
+    if [ -d "$INSTALL_DIR" ]; then
+        read -p "Remove installation directory $INSTALL_DIR? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            rm -rf "$INSTALL_DIR"
+            print_status "Installation directory removed"
+        fi
+    fi
+}
+
+# Main installation function
+main() {
+    # Set up error handling
+    trap cleanup_on_error ERR
+
+    print_header
+
+    print_status "🤖 Welcome to the N0MAD Standalone Installer!"
+    print_status "This script will install N0MAD without requiring pip"
+    echo ""
+
+    # Check if running as root
+    if [ "$EUID" -eq 0 ]; then
+        print_warning "Running as root. N0MAD will be installed system-wide."
+        INSTALL_DIR="/opt/n0mad"
+        BIN_DIR="/usr/local/bin"
+        VENV_DIR="$INSTALL_DIR/venv"
+        SOURCE_DIR="$INSTALL_DIR/source"
+    fi
+
+    # Installation steps
+    local python_cmd=$(check_python)
+    install_system_deps
+    create_directories
+    download_source
+    create_virtual_env "$python_cmd"
+    install_dependencies
+    create_wrapper_script
+    update_path
+    test_installation
+    create_config_template
+
+    show_completion
+}
+
+# Run main function if script is executed directly
+if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
+    main "$@"
+fi

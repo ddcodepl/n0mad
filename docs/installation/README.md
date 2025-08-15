@@ -42,7 +42,7 @@ Choose the installation method that best fits your needs:
 
 ### Operating Systems
 - **[Windows](platform-specific/windows.md)** - Windows 10/11 installation
-- **[macOS](platform-specific/macos.md)** - macOS installation and setup  
+- **[macOS](platform-specific/macos.md)** - macOS installation and setup
 - **[Linux](platform-specific/linux.md)** - Linux distribution guides
 - **[Cloud Platforms](platform-specific/cloud-platforms.md)** - AWS, Azure, GCP deployment
 
@@ -92,7 +92,7 @@ Expected output: `Python 3.8.x` or higher
 ### Check pip
 ```bash
 pip --version
-# or  
+# or
 python -m pip --version
 ```
 
@@ -183,7 +183,7 @@ Nomad integrates with several services. Here's how to get the required API keys:
 
 #### Anthropic (Claude)
 1. Visit [Anthropic Console](https://console.anthropic.com/)
-2. Go to API Keys section  
+2. Go to API Keys section
 3. Create a new key (starts with `sk-ant-`)
 
 #### OpenRouter

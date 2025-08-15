@@ -472,7 +472,7 @@ snyk test
 #### 2. Automated Security Updates
 Consider using tools like:
 - **Dependabot**: Automated dependency updates
-- **PyUp**: Python package security monitoring  
+- **PyUp**: Python package security monitoring
 - **Snyk**: Vulnerability scanning and fixes
 
 #### 3. Security Update Process
@@ -670,25 +670,25 @@ jobs:
     strategy:
       matrix:
         python-version: [3.8, 3.9, 3.10, 3.11, 3.12]
-    
+
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: |
         pip install uv
         uv pip install -e ".[dev,test]"
-    
+
     - name: Run tests
       run: |
         pytest tests/ --cov
         black --check .
         mypy .
-    
+
     - name: Security check
       run: |
         pip-audit
@@ -949,7 +949,7 @@ ERROR: pip's dependency resolver does not currently take into account all the pa
    ```bash
    # Install pre-compiled wheels
    pip install --only-binary=all package-name
-   
+
    # Install build dependencies
    pip install wheel setuptools
    ```

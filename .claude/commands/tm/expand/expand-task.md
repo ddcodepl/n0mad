@@ -9,7 +9,7 @@ Analyzes a task and creates detailed subtasks for better manageability.
 ## Execution
 
 ```bash
-taskmaster expand --id=$ARGUMENTS
+task-master expand --id=$ARGUMENTS
 ```
 
 ## Expansion Process

@@ -7,7 +7,7 @@ Remove all subtasks across the entire project. Use with extreme caution.
 ## Execution
 
 ```bash
-taskmaster clear-subtasks --all
+task-master clear-subtasks --all
 ```
 
 ## Pre-Clear Analysis
@@ -21,7 +21,7 @@ taskmaster clear-subtasks --all
    - Completed: 15
    - In-progress: 8
    - Pending: 24
-   
+
    Work at risk: ~120 hours
    ```
 

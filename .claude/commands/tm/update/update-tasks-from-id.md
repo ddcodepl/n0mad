@@ -17,7 +17,7 @@ Update multiple related tasks based on new requirements or context changes.
 ## Execution
 
 ```bash
-taskmaster update --from=<id> --prompt="<context>"
+task-master update --from=<id> --prompt="<context>"
 ```
 
 ## Update Process
@@ -62,15 +62,15 @@ AI analyzes the update context and:
    ━━━━━━━━━━━━━━━━━━
    Starting from: Task #5
    Tasks to update: 8 tasks + 12 subtasks
-   
+
    Context: "add security requirements"
-   
+
    Changes will include:
    - Add security sections to descriptions
    - Update test strategies for security
    - Add security-related subtasks where needed
    - Adjust time estimates (+20% average)
-   
+
    Continue? (y/n)
    ```
 

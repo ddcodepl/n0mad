@@ -7,7 +7,7 @@ Shows the currently configured AI providers and models for Task Master.
 ## Execution
 
 ```bash
-taskmaster models
+task-master models
 ```
 
 ## Information Displayed
@@ -18,7 +18,7 @@ taskmaster models
    - Usage: Primary task generation
 
 2. **Research Provider**
-   - Model ID and name  
+   - Model ID and name
    - API key status
    - Usage: Enhanced research mode
 
@@ -33,7 +33,7 @@ taskmaster models
 Task Master AI Model Configuration
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Main:     ✅ claude-3-5-sonnet (configured)
-Research: ✅ perplexity-sonar (configured)  
+Research: ✅ perplexity-sonar (configured)
 Fallback: ⚠️  Not configured (optional)
 
 Available Models:

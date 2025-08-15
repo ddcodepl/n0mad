@@ -28,7 +28,7 @@ Learn the fundamental operations and commands.
 
 ### Intermediate
 - [Advanced Configuration](advanced-configuration.md) - Custom setups and optimization
-- [Workflow Automation](workflow-automation.md) - Automating complex workflows  
+- [Workflow Automation](workflow-automation.md) - Automating complex workflows
 - [Integration Guides](integration-guides.md) - Connecting with other tools
 - [Performance Tuning](performance-tuning.md) - Optimizing performance
 
@@ -182,7 +182,7 @@ Help improve these guides:
 
 **By Use Case:**
 - **Individual User**: Quick Start → Basic Configuration → Task Refinement
-- **Small Team**: Team Setup → Slack Integration → Collaboration Workflow  
+- **Small Team**: Team Setup → Slack Integration → Collaboration Workflow
 - **Enterprise**: Production Setup → Enterprise Deployment → Monitoring Integration
 
 ---

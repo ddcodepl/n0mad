@@ -6,7 +6,7 @@ This command shows all tasks with their nested subtasks, providing a complete pr
 
 Run the Task Master list command with subtasks flag:
 ```bash
-taskmaster list --with-subtasks
+task-master list --with-subtasks
 ```
 
 ## Enhanced Display

@@ -1,0 +1,4 @@
+[console_scripts]
+n0mad = src.entry.main:main
+nomad = src.entry.main:main
+nomad-config = src.entry.main:main

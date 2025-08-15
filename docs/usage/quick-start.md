@@ -10,7 +10,7 @@ By the end of this guide, you'll have:
 - ✅ Processed your first task
 - ✅ Understanding of basic commands and workflows
 
-**Time Required**: ~10 minutes  
+**Time Required**: ~10 minutes
 **Prerequisites**: Python 3.8+, internet connection
 
 ## Step 1: Installation (2 minutes)
@@ -38,7 +38,7 @@ You'll need API keys from Notion and at least one AI provider.
 
 1. **Create Integration**:
    - Go to [notion.so/my-integrations](https://www.notion.so/my-integrations)
-   - Click "New integration" 
+   - Click "New integration"
    - Name it "Nomad Automation"
    - Select your workspace
    - Click "Submit"
@@ -142,7 +142,7 @@ Expected output:
 
 ✅ Python 3.9.7 detected (requirement: 3.8+)
 ✅ NOTION_TOKEN configured
-✅ NOTION_BOARD_DB configured  
+✅ NOTION_BOARD_DB configured
 ✅ OPENAI_API_KEY configured and valid
 ✅ Home: ~/.nomad (readable/writable)
 ✅ Tasks: ~/.nomad/tasks (readable/writable)
@@ -174,7 +174,7 @@ Expected output:
 🚀 Starting refine mode - processing tasks with 'To Refine' status...
 Found 3 valid tasks to process concurrently
 ✅ Task TASK-123 processed successfully
-✅ Task TASK-124 processed successfully  
+✅ Task TASK-124 processed successfully
 ✅ Task TASK-125 processed successfully
 🏁 Completed concurrent processing of 3 tasks
 ```
@@ -232,7 +232,7 @@ nomad --help                # Show all commands
 # Processing modes
 nomad --refine              # Process "To Refine" tasks
 nomad --prepare             # Process "Prepare Tasks"
-nomad --queued              # Process "Queued to run" tasks  
+nomad --queued              # Process "Queued to run" tasks
 nomad --multi               # Multi-status processing
 nomad                       # Continuous polling (default)
 
@@ -295,7 +295,7 @@ Make sure your database has these properties:
 - **Name** (Title) - Task titles
 - **Status** (Select) - Task status with options:
   - "To Refine"
-  - "Prepare Tasks" 
+  - "Prepare Tasks"
   - "Queued to run"
   - "In Progress"
   - "Done"
