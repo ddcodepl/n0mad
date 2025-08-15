@@ -6,7 +6,7 @@ intelligent task management, automated development workflows, and seamless AI co
 Built with support for Claude, OpenAI, Anthropic, and other leading AI providers.
 """
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 __author__ = "N0MAD Development Team"
 __license__ = "MIT"
 
