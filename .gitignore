@@ -2,6 +2,31 @@ dist/*
 tasks/*
 .taskmaster/*
 
+# Python build artifacts
+*.egg-info/
+*.egg
+*.pyc
+__pycache__/
+build/
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
 # Logs
 logs
 *.log

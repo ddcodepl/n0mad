@@ -1,6 +1,6 @@
 # N0MAD - Notion Orchestrated Management & Autonomous Developer
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-0.0.1-green.svg)](https://pypi.org/project/n0mad/)
 
@@ -18,6 +18,18 @@
 - 🚀 **Multi-AI Provider Support**: Claude, OpenAI, Anthropic, and OpenRouter
 - 🛡️ **Enterprise Security**: Production-ready security and configuration management
 - 📈 **Performance Monitoring**: Built-in analytics and performance tracking
+
+## 🔍 Prerequisites and Requirements
+
+**Essential Components for N0MAD:**
+
+- 🤖 **Claude Code (Required)**: AI-powered development assistant is MANDATORY for full N0MAD functionality
+- 📋 **Task Master AI (Required)**: Integrated project management and task tracking system
+- 🌐 **Notion Account (Free Tier Available)**: Required for workspace integration
+- 🐍 **Python 3.11+**: Minimum Python version for running N0MAD
+- 🔑 **API Keys**: At least one AI provider API key (OpenAI, Anthropic, etc.)
+
+**Note:** These components are critical for N0MAD's autonomous development capabilities and must be properly configured.
 
 ## 🚀 Features
 
@@ -211,7 +223,7 @@ n0mad --config-status
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.11 or higher
 - pip or pipx for installation
 
 ### Development Setup

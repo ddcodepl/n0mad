@@ -1012,7 +1012,7 @@ def show_config_help():
 
     # Get global config to show requirements
     try:
-        config = get_global_config()
+        config = get_config()
         summary = config.get_config_summary()
 
         required_vars = []
@@ -1054,7 +1054,7 @@ def create_config_template(working_dir: Optional[str] = None):
         if working_dir:
             os.chdir(working_dir)
 
-        config = get_global_config()
+        config = get_config()
         template_path = config.create_global_config_template()
 
         print(f"✅ Configuration template created: {template_path}")
@@ -1076,7 +1076,7 @@ def show_config_status(working_dir: Optional[str] = None):
         if working_dir:
             os.chdir(working_dir)
 
-        config = get_global_config()
+        config = get_config()
         summary = config.get_config_summary()
         issues = config.validate_working_environment()
 
@@ -1160,7 +1160,7 @@ def perform_health_check(working_dir: Optional[str] = None):
         print("⚙️  Configuration:")
         print("-" * 20)
 
-        config = get_global_config(strict_validation=False)
+        config = get_config()
 
         # Required configuration
         required_vars = ["NOTION_TOKEN", "NOTION_BOARD_DB"]
