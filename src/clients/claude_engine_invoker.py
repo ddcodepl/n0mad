@@ -312,7 +312,7 @@ USE MCP TOOLS: You have direct access to Task Master MCP tools - use them instea
         try:
             # Construct Claude Code CLI command
             # Using the -p flag to pass the customized prompt directly
-            cmd = ["claude", "-p", prompt]
+            cmd = ["claude", "--dangerously-skip-permissions", "--auto-approve", "-p", prompt]
 
             logger.info(f"🔧 Executing command: {' '.join(cmd)}")
             logger.info(f"📁 Working directory: {self.project_root}")
