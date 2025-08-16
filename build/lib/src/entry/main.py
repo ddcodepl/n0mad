@@ -754,7 +754,7 @@ class NotionDeveloper:
 
                     if priority_statuses:
                         # Convert string status names to TaskStatus enums
-                        from utils.task_status import TaskStatus
+                        from src.utils.task_status import TaskStatus
 
                         include_statuses = {TaskStatus(status) for status in priority_statuses}
 
@@ -807,7 +807,7 @@ class NotionDeveloper:
                 priority_statuses = [item["status"] for item in recommendations["priority_statuses"]]
 
                 if priority_statuses:
-                    from utils.task_status import TaskStatus
+                    from src.utils.task_status import TaskStatus
 
                     include_statuses = {TaskStatus(status) for status in priority_statuses}
 
@@ -939,7 +939,7 @@ def main():
     parser.add_argument(
         "--version",
         action="version",
-        version="N0MAD v0.0.2 - Notion Orchestrated Management & Autonomous Developer",
+        version="N0MAD v0.0.3 - Notion Orchestrated Management & Autonomous Developer",
     )
 
     args = parser.parse_args()

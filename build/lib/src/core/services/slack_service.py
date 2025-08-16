@@ -27,7 +27,7 @@ from src.utils.slack_config import MessagePriority, SlackConfig, get_slack_confi
 
 # Import security manager (with fallback if not available)
 try:
-    from utils.slack_security import get_slack_security_manager
+    from src.utils.slack_security import get_slack_security_manager
 
     SECURITY_AVAILABLE = True
 except ImportError:

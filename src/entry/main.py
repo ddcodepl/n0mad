@@ -754,7 +754,7 @@ class NotionDeveloper:
 
                     if priority_statuses:
                         # Convert string status names to TaskStatus enums
-                        from utils.task_status import TaskStatus
+                        from src.utils.task_status import TaskStatus
 
                         include_statuses = {TaskStatus(status) for status in priority_statuses}
 
@@ -807,7 +807,7 @@ class NotionDeveloper:
                 priority_statuses = [item["status"] for item in recommendations["priority_statuses"]]
 
                 if priority_statuses:
-                    from utils.task_status import TaskStatus
+                    from src.utils.task_status import TaskStatus
 
                     include_statuses = {TaskStatus(status) for status in priority_statuses}
 

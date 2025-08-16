@@ -15,10 +15,10 @@ __title__ = "n0mad"
 __description__ = "N0MAD: Notion Orchestrated Management & Autonomous Developer - AI-powered Notion automation with autonomous development capabilities"
 __url__ = "https://github.com/ddcodepl/n0mad"
 
-from src.utils.env_security import EnvironmentSecurityManager
+from .utils.env_security import EnvironmentSecurityManager
 
 # Import main components for programmatic access
-from src.utils.global_config import GlobalConfigManager, get_global_config, initialize_global_config
+from .utils.global_config import GlobalConfigManager, get_global_config, initialize_global_config
 
 # Define public API
 __all__ = [

@@ -54,7 +54,7 @@ class TaskFileManager:
         self._max_history = 100
 
         # Default paths - tasks stored in root directory
-        from utils.file_operations import get_tasks_dir
+        from src.utils.file_operations import get_tasks_dir
 
         tasks_base_dir = get_tasks_dir()
         if not os.path.isabs(tasks_base_dir):
