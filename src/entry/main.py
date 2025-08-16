@@ -939,7 +939,7 @@ def main():
     parser.add_argument(
         "--version",
         action="version",
-        version="N0MAD v0.0.3 - Notion Orchestrated Management & Autonomous Developer",
+        version="N0MAD v0.0.4 - Notion Orchestrated Management & Autonomous Developer",
     )
 
     args = parser.parse_args()
